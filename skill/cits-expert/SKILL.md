@@ -7,7 +7,7 @@ description: Use when developing, analyzing, decoding, or validating C-ITS and V
 
 ## Overview
 
-Cooperative Intelligent Transport Systems (C-ITS) and Vehicle-to-Everything (V2X) connect vehicles, infrastructure (RSUs), and vulnerable road users over 5.9 GHz ITS-G5 (IEEE 802.11p) and C-V2X (PC5/LTE-V2X/5G-V2X). This skill provides definitive standards, dissection pipelines, topology algorithms, and hardware integration rules.
+Cooperative Intelligent Transport Systems (C-ITS) and Vehicle-to-Everything (V2X) connect vehicles, infrastructure (RSUs), and road users over 5.9 GHz ITS-G5 (802.11p) and C-V2X. This skill provides standards, dissection pipelines, topology algorithms, and automated validation tools (`cits-lint`, `cits-mcp`).
 
 ---
 
@@ -41,7 +41,7 @@ Load the corresponding reference module for detailed specifications, byte layout
 ## Pre-Commit Verification Gate
 
 Before committing code in any C-ITS repository:
-1. **Real PCAP Gate:** Verified against at least one real capture containing DLT 127 Radiotap.
-2. **Topology Gate:** Verified that MAPEM connections bind to Node 0 stoplines and resolve signal groups without modulo arithmetic.
-3. **Time Base Gate:** Verified that firmware timestamps are anchored against host wall-clock time.
-4. **Clean Suite:** Full test suite passes without skipping or ignoring real capture failures.
+1. **Real PCAP Gate:** Verified against real captures containing DLT 127 Radiotap.
+2. **Topology Gate:** Verified that MAPEM connections bind to Node 0 stoplines.
+3. **Time Base Gate:** Verified that firmware timestamps anchor against host wall time.
+4. **Automated Audit:** Run `cits-lint` or use `cits-mcp` (`cits_audit_code`) to ensure zero hallucinations.

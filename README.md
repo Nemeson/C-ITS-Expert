@@ -25,6 +25,7 @@ Engineered specifically for **AI Coding Agents** (Claude Code, OpenAI Codex, Ope
   - [5. SREM / SSEM Request Prioritization & GLOSA](#5-srem--ssem-request-prioritization--glosa)
   - [6. ESP32-C5 & Linux-based RSU Field Sniffing](#6-esp32-c5--linux-based-rsu-field-sniffing)
 - [💻 Multi-Language Reference Implementations](#-multi-language-reference-implementations)
+- [🛠️ Automated Validation Suite: CLI Linter & MCP Server](#️-automated-validation-suite-cli-linter--mcp-server)
 - [📦 Universal Installation across AI Agent Runtimes](#-universal-installation-across-ai-agent-runtimes)
 - [🧪 Automated Test Suite & CI/CD Pipeline](#-automated-test-suite--cicd-pipeline)
 - [📚 Standards & Specifications](#-standards--specifications)
@@ -161,6 +162,42 @@ The repository provides production-tested, self-contained reference code snippet
 | **C++** | [`esp32_framing.hpp`](skill/cits-expert/examples/cpp/esp32_framing.hpp) | Header-only C++17 `ITS5`/`ITS6` streaming framing parser and time anchor. |
 | **Java** | [`DltReader.java`](skill/cits-expert/examples/java/DltReader.java) | `ByteBuffer`-based DLT unwrapper for Android (MobileInspector) & Java SE. |
 | **Java** | [`Esp32HostTimeAnchor.java`](skill/cits-expert/examples/java/Esp32HostTimeAnchor.java) | Android / Java SE host wall-clock time anchor and RSSI sentinel handler. |
+
+---
+
+## 🛠️ Automated Validation Suite: CLI Linter & MCP Server
+
+To programmatically halt LLM hallucinations and enforce empirical protocol rules at build time, the repository ships with `cits_validator`, providing both a command-line tool (`cits-lint`) and an interactive Model Context Protocol server (`cits-mcp`):
+
+### 1. Terminal CLI (`cits-lint`)
+The CLI streams PCAP files with $< 2$ MB RAM footprint and statically audits source code files:
+```bash
+# Scan a capture trace for DLT 127 length offsets, nanosecond magic, and LLC/SNAP
+cits-lint capture.pcap
+
+# Audit source code for prohibited synthetic GNSS math and modulo signal groups
+cits-lint src/v2x/ --strict --format json
+```
+
+### 2. Interactive MCP Server (`cits-mcp`)
+Connect `cits-mcp` directly to **Antigravity**, **Claude Code**, or **Cursor** to let coding agents self-audit code snippets and packet byte-streams during pair-programming:
+
+```json
+{
+  "mcpServers": {
+    "cits-validator": {
+      "command": "python",
+      "args": ["-m", "cits_validator.mcp.server"]
+    }
+  }
+}
+```
+
+Exposed Agent Tools:
+* `cits_audit_code(code, language)`: In-memory AST/regex scanner detecting `sin(t)` coordinate drift, modulo phase arithmetic, and 90-second static cycle loops.
+* `cits_inspect_hex(hex_payload, dlt)`: Zero-copy wire dissector verifying Radiotap offsets, 802.11 QoS headers, and LLC/SNAP `0x8947`.
+* `cits_check_mapem(lanes_geojson)`: Checks stopline Node-0 orientations and flags diagonal overlong chords ($> 25$ m).
+* `cits_validate_pcap(file_path)`: Streams and audits full capture files.
 
 ---
 
