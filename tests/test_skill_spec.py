@@ -65,3 +65,14 @@ def test_polyglot_examples_exist():
     for expected in expected_files:
         assert expected.exists(), f"Missing example file: {expected}"
         assert expected.stat().st_size > 0, f"Example file is empty: {expected}"
+
+
+def test_changelog_exists_and_tracks_releases():
+    changelog = REPO_ROOT / "CHANGELOG.md"
+    assert changelog.exists(), "CHANGELOG.md must exist at repository root"
+    content = changelog.read_text(encoding="utf-8")
+    assert "## [Unreleased]" in content
+    assert "## [1.2.0]" in content
+    assert "## [1.1.0]" in content
+    assert "## [1.0.0]" in content
+
