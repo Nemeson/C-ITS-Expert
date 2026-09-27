@@ -50,3 +50,18 @@ def test_routing_matrix_links_resolve():
     for link in links:
         target_path = SKILL_DIR / link
         assert target_path.exists(), f"Referenced file does not exist: {target_path}"
+
+
+def test_polyglot_examples_exist():
+    examples_dir = SKILL_DIR / "examples"
+    expected_files = [
+        examples_dir / "python" / "dlt_unwrapper.py",
+        examples_dir / "rust" / "dissector.rs",
+        examples_dir / "typescript" / "dlt_reader.ts",
+        examples_dir / "javascript" / "dlt_reader.js",
+        examples_dir / "cpp" / "dlt_dissector.hpp",
+        examples_dir / "java" / "DltReader.java",
+    ]
+    for expected in expected_files:
+        assert expected.exists(), f"Missing example file: {expected}"
+        assert expected.stat().st_size > 0, f"Example file is empty: {expected}"

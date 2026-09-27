@@ -69,7 +69,10 @@ skill/cits-expert/
 └── examples/                         # Bit-exact, runnable implementations
     ├── python/                       # DltUnwrapper, MapemTopologyAssembler, Esp32HostTimeAnchor
     ├── rust/                         # Zero-copy nom dissector, lookahead ITS5/6 framing
-    └── typescript/                   # DataView packet reader, GeoJSON lane connection curve builder
+    ├── typescript/                   # DataView packet reader, GeoJSON lane connection curve builder
+    ├── javascript/                   # Vanilla JS DltReader, GeoJSON lane geometry builder
+    ├── cpp/                          # Modern C++17 DltDissector, Esp32FramingEngine (header-only)
+    └── java/                         # Android & Java SE DltReader, Esp32HostTimeAnchor
 ```
 
 ---
@@ -152,6 +155,12 @@ The repository provides production-tested, self-contained reference code snippet
 | **Rust** | [`esp32_framing.rs`](skill/cits-expert/examples/rust/esp32_framing.rs) | Lookahead `ITS5`/`ITS6` streaming parser with RSSI extraction and time anchoring. |
 | **TypeScript** | [`dlt_reader.ts`](skill/cits-expert/examples/typescript/dlt_reader.ts) | `DataView`-based packet dissector for web and desktop UIs (Tauri/Svelte). |
 | **TypeScript** | [`lane_geometry.ts`](skill/cits-expert/examples/typescript/lane_geometry.ts) | GeoJSON LineString generator for Ingress-to-Egress stopline curves. |
+| **JavaScript** | [`dlt_reader.js`](skill/cits-expert/examples/javascript/dlt_reader.js) | Vanilla JS packet reader for Node.js / browser frontends (Leaflet/MapLibre). |
+| **JavaScript** | [`lane_geometry.js`](skill/cits-expert/examples/javascript/lane_geometry.js) | Vanilla JS stopline curve generator and Haversine distance calculator. |
+| **C++** | [`dlt_dissector.hpp`](skill/cits-expert/examples/cpp/dlt_dissector.hpp) | Header-only C++17 zero-copy link-layer unwrapper for embedded / RSU daemons. |
+| **C++** | [`esp32_framing.hpp`](skill/cits-expert/examples/cpp/esp32_framing.hpp) | Header-only C++17 `ITS5`/`ITS6` streaming framing parser and time anchor. |
+| **Java** | [`DltReader.java`](skill/cits-expert/examples/java/DltReader.java) | `ByteBuffer`-based DLT unwrapper for Android (MobileInspector) & Java SE. |
+| **Java** | [`Esp32HostTimeAnchor.java`](skill/cits-expert/examples/java/Esp32HostTimeAnchor.java) | Android / Java SE host wall-clock time anchor and RSSI sentinel handler. |
 
 ---
 
