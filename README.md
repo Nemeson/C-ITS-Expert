@@ -265,7 +265,7 @@ pytest -v
 ruff check .
 ```
 
-### Verified Test Matrix (62 Tests, 100% Green)
+### Verified Test Matrix (67 Tests, 100% Green)
 - `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
 - `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
 - `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.

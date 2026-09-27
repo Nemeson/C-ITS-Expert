@@ -64,3 +64,38 @@ def test_export_mapem_kml_structure_and_coords():
                      "K1" in (pm.findtext("{http://www.opengis.net/kml/2.2}description") or "")
                      for pm in placemarks)
     assert found_lisa is True
+
+
+def test_export_mapem_kml_multi_fragments_and_signal_group_zero():
+    fragments_dict = {
+        "fragments": [
+            {
+                "layer_id": 21,
+                "lanes": [
+                    {
+                        "lane_id": 0,
+                        "lane_type": "ingress",
+                        "signal_group": 0,
+                        "nodes": [
+                            {"lat": 52.5, "lon": 13.4, "elevation": 5.0},
+                            {"lat": 52.51, "lon": 13.4, "elevation": 5.0},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    catalog = LisaSupplyCatalog(
+        groups={
+            0: LisaSignalGroup(obj_nr=0, bezeichnung="K0", classification="vehicle")
+        }
+    )
+    kml_str = export_mapem_kml(fragments_dict, lisa_catalog=catalog)
+    root = ET.fromstring(kml_str)
+    placemarks = root.findall(".//{http://www.opengis.net/kml/2.2}Placemark")
+    assert len(placemarks) >= 1
+    # Check that signal group 0 was preserved
+    desc = placemarks[0].findtext("{http://www.opengis.net/kml/2.2}description") or ""
+    assert "Signal Group: 0" in desc
+    assert "K0" in desc
+

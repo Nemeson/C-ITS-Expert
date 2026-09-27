@@ -75,3 +75,23 @@ def test_glosa_impossible_pass_prepare_to_stop():
 
     assert advisory.is_pass_possible is False
     assert advisory.recommendation == RECOMMENDATION_STOP
+
+
+def test_glosa_decelerate_for_standard_spat_without_green_duration():
+    # Distance: 100m, Current: 50 km/h (ETA 7.2s).
+    # RED ends in 8.0s. Standard SPATEM doesn't transmit next green duration (defaults to 0.0s).
+    # Slowing to <= 45 km/h arrives at t >= 8.0s (when light turns green).
+    advisory = compute_glosa_advisory(
+        distance_m=100.0,
+        current_speed_kmh=50.0,
+        speed_limit_kmh=50.0,
+        phase_state="RED",
+        time_to_phase_end_s=8.0,
+        next_green_duration_s=0.0,  # Omitted / unknown upcoming duration
+    )
+
+    assert advisory.is_pass_possible is True
+    assert advisory.recommendation == RECOMMENDATION_DECELERATE
+    assert advisory.speed_max_kmh <= 45.0
+    assert advisory.speed_min_kmh == 20.0
+

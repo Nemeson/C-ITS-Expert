@@ -124,19 +124,26 @@ def compute_glosa_advisory(
         )
 
     elif state in ("RED", "YELLOW"):
-        # Vehicle must wait for RED to end
+        # Vehicle must wait for current phase (RED/YELLOW) to end
         red_end = time_to_phase_end_s
-        if next_green_duration_s > 0.0:
-            green_start = red_end
-            green_end = red_end + next_green_duration_s - safety_buffer_s
+        if red_end > 0.0:
+            if next_green_duration_s > 0.0:
+                green_start = red_end
+                green_end = red_end + next_green_duration_s - safety_buffer_s
 
-            # Earliest arrival allowed is green_start
-            v_max_allowable = (distance_m / green_start) * 3.6 if green_start > 0 else speed_limit_kmh
-            v_max = min(speed_limit_kmh, v_max_allowable)
+                # Earliest arrival allowed is green_start
+                v_max_allowable = (distance_m / green_start) * 3.6 if green_start > 0 else speed_limit_kmh
+                v_max = min(speed_limit_kmh, v_max_allowable)
 
-            # Latest arrival allowed is green_end
-            v_min_allowable = (distance_m / green_end) * 3.6 if green_end > 0 else min_comfort_speed_kmh
-            v_min = max(min_comfort_speed_kmh, v_min_allowable)
+                # Latest arrival allowed is green_end
+                v_min_allowable = (distance_m / green_end) * 3.6 if green_end > 0 else min_comfort_speed_kmh
+                v_min = max(min_comfort_speed_kmh, v_min_allowable)
+            else:
+                # Standard SPATEM without upcoming phase duration:
+                # Decelerate so arrival is at or after green onset (t >= red_end)
+                v_max_allowable = (distance_m / red_end) * 3.6
+                v_max = min(speed_limit_kmh, v_max_allowable)
+                v_min = min_comfort_speed_kmh
 
             if v_min <= v_max and v_max >= min_comfort_speed_kmh:
                 rec = RECOMMENDATION_DECELERATE if v_max < current_speed_kmh else RECOMMENDATION_CRUISE
@@ -146,7 +153,7 @@ def compute_glosa_advisory(
                     recommendation=rec,
                     time_to_stopline_s=round(distance_m / ((v_min + v_max) / 2 / 3.6), 1),
                     is_pass_possible=True,
-                    details=f"Adjust speed to {v_min:.1f} - {v_max:.1f} km/h to meet green onset at {green_start:.1f}s.",
+                    details=f"Adjust speed to {v_min:.1f} - {v_max:.1f} km/h to meet green onset at {red_end:.1f}s.",
                 )
 
         # Cannot pass upcoming phase comfortably

@@ -64,8 +64,17 @@ def export_mapem_geojson(
     Returns:
         dict representation of GeoJSON FeatureCollection.
     """
-    if isinstance(lanes_or_topology, dict) and "lanes" in lanes_or_topology:
-        lanes = lanes_or_topology["lanes"]
+    if isinstance(lanes_or_topology, dict):
+        if "lanes" in lanes_or_topology:
+            lanes = lanes_or_topology["lanes"]
+        elif "fragments" in lanes_or_topology:
+            lanes = [
+                lane
+                for frag in lanes_or_topology["fragments"]
+                for lane in frag.get("lanes", [])
+            ]
+        else:
+            lanes = []
     elif isinstance(lanes_or_topology, list):
         lanes = lanes_or_topology
     else:
@@ -83,13 +92,17 @@ def export_mapem_geojson(
 
         coordinates = [_parse_node_coord(n) for n in raw_nodes]
 
-        # Extract signal group if present
-        signal_group: int | None = lane.get("signal_group") or lane.get("signalGroup")
+        # Extract signal group if present (handle 0 as valid ID)
+        signal_group: int | None = (
+            lane.get("signal_group")
+            if lane.get("signal_group") is not None
+            else lane.get("signalGroup")
+        )
         if signal_group is None:
             connects_to = lane.get("connects_to") or lane.get("connectsTo") or []
             if connects_to and isinstance(connects_to, list):
                 for conn in connects_to:
-                    sg = conn.get("signal_group") or conn.get("signalGroup")
+                    sg = conn.get("signal_group") if conn.get("signal_group") is not None else conn.get("signalGroup")
                     if sg is not None:
                         signal_group = int(sg)
                         break

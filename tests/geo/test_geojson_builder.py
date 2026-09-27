@@ -69,3 +69,36 @@ def test_export_mapem_geojson_basic():
     assert len(stoplines) == 1
     assert stoplines[0]["geometry"]["type"] == "Point"
     assert stoplines[0]["geometry"]["coordinates"] == [10.0001, 53.5501, 15.0]
+
+
+def test_export_mapem_geojson_multi_fragments_and_signal_group_zero():
+    fragments_dict = {
+        "fragments": [
+            {
+                "layer_id": 21,
+                "lanes": [
+                    {
+                        "lane_id": 0,
+                        "lane_type": "ingress",
+                        "signal_group": 0,
+                        "nodes": [
+                            {"lat": 52.5, "lon": 13.4, "elevation": 5.0},
+                            {"lat": 52.51, "lon": 13.4, "elevation": 5.0},
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    catalog = LisaSupplyCatalog(
+        groups={
+            0: LisaSignalGroup(obj_nr=0, bezeichnung="K0", classification="vehicle")
+        }
+    )
+    geojson = export_mapem_geojson(fragments_dict, lisa_catalog=catalog)
+    assert geojson["type"] == "FeatureCollection"
+    assert len(geojson["features"]) == 2  # LineString + Stopline
+    props = geojson["features"][0]["properties"]
+    assert props["signal_group"] == 0
+    assert props["lisa_name"] == "K0"
+

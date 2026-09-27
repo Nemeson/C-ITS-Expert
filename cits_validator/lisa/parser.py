@@ -27,7 +27,16 @@ def classify_signal_group(bezeichnung: str, aspects: Sequence[str]) -> str:
         return CLASS_PEDESTRIAN
     if upper.startswith("R") or upper.startswith("RAD") or (upper.startswith("B") and "BIKE" in upper):
         return CLASS_BICYCLE
-    if upper.startswith("B") or upper.startswith("BUS") or upper.startswith("TRAM") or upper.startswith("STRAB"):
+    if (
+        upper.startswith("B")
+        or upper.startswith("BUS")
+        or upper.startswith("TRAM")
+        or upper.startswith("STRAB")
+        or upper.startswith("Ö")
+        or upper.startswith("OE")
+        or "ÖPNV" in upper
+        or "OEPNV" in upper
+    ):
         return CLASS_TRANSIT
     if upper.startswith("K") or upper.startswith("KFZ") or upper.startswith("SG"):
         return CLASS_VEHICLE
@@ -106,7 +115,13 @@ def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
 
             if ansteuerung is not None:
                 for aspect_el in ansteuerung:
-                    aspects.append(aspect_el.tag)
+                    aspect_name = (
+                        _get_ci_attrib(aspect_el, "name", "signalbild", "aspect", "bezeichnung")
+                        or (aspect_el.text and aspect_el.text.strip())
+                        or aspect_el.tag
+                    )
+                    if aspect_name:
+                        aspects.append(aspect_name.strip())
             else:
                 aspects = ["Rot", "Gelb", "Gruen"]
 

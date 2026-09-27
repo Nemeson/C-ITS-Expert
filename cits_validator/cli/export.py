@@ -83,7 +83,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         content = json.dumps(result_dict, indent=2, ensure_ascii=False)
     else:
         name = args.name
-        if lisa_catalog and lisa_catalog.intersection_name:
+        if name == "C-ITS Intersection" and lisa_catalog and lisa_catalog.intersection_name:
             name = lisa_catalog.intersection_name
         content = export_mapem_kml(mapem_data, lisa_catalog=lisa_catalog, intersection_name=name)
 

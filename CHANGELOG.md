@@ -38,8 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `cits_compute_glosa`: Real-time calculation of Green Light Optimal Speed Advisory speed windows.
   - `cits_export_kml`: Generates 3D KML documents directly from AI coding agent pair-programming contexts.
 - **Testing & Quality:**
-  - Expanded test suite to **62 automated tests** (100% passing).
+  - Expanded test suite to **67 automated tests** (100% passing).
   - Added test modules: `tests/geo/test_geojson_builder.py`, `tests/geo/test_kml_builder.py`, `tests/geo/test_glosa.py`, `tests/lisa/test_lisa_parser.py`, `tests/cli/test_export_cli.py`.
+  - Added robust aspect extraction for `<Signalbild Name="..." />` and transit movement heuristics for German `Ö` / `ÖV` / `ÖPNV` prefixes.
+  - Added raw multi-fragment (`{"fragments": [...]}`) input support and signal group ID 0 compatibility in KML/GeoJSON exporters.
+  - Added SPATEM RED phase deceleration optimization when subsequent green duration is omitted.
 
 ### Changed
 - Updated `pyproject.toml` version to `1.2.0` and refined setuptools package discovery with `include = ["cits_validator*"]`.

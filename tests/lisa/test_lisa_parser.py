@@ -82,3 +82,35 @@ def test_parse_lisa_supply_groups():
 def test_missing_obj_nr_returns_none():
     catalog = parse_lisa_supply(SAMPLE_LISA_XML)
     assert catalog.by_obj_nr(999) is None
+
+
+def test_lisa_aspect_attribute_signalbild_and_german_transit_prefix():
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+    <Versorgung>
+      <Knoten Name="Marienplatz" />
+      <SignalGruppe Objektnr="30" Bezeichnung="Ö1" Kommentar="Tram Linie 19">
+        <Ansteuerung>
+          <Signalbild Name="Rot" />
+          <Signalbild Name="Gelb" />
+          <Signalbild Name="Grün" />
+        </Ansteuerung>
+      </SignalGruppe>
+      <SignalGruppe Objektnr="31" Bezeichnung="OE2" Kommentar="Bus Metro">
+        <Ansteuerung>
+          <Signalbild Name="F0" />
+        </Ansteuerung>
+      </SignalGruppe>
+    </Versorgung>"""
+
+    catalog = parse_lisa_supply(xml)
+    o1 = catalog.by_obj_nr(30)
+    assert o1 is not None
+    assert o1.bezeichnung == "Ö1"
+    assert o1.classification == CLASS_TRANSIT
+    assert o1.aspects == ["Rot", "Gelb", "Grün"]
+
+    oe2 = catalog.by_obj_nr(31)
+    assert oe2 is not None
+    assert oe2.bezeichnung == "OE2"
+    assert oe2.classification == CLASS_TRANSIT
+
