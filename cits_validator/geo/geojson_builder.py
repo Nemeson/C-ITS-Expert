@@ -8,6 +8,7 @@ Mapbox, Kepler.gl, and geojson.io.
 from __future__ import annotations
 
 from typing import Any
+
 from cits_validator.lisa.models import LisaSupplyCatalog
 
 COLOR_INGRESS = "#00e5ff"

@@ -1,6 +1,5 @@
-import pytest
 from cits_validator.geo.geojson_builder import export_mapem_geojson
-from cits_validator.lisa.models import LisaSupplyCatalog, LisaSignalGroup
+from cits_validator.lisa.models import LisaSignalGroup, LisaSupplyCatalog
 
 
 def test_export_mapem_geojson_basic():

@@ -7,7 +7,7 @@ description: Use when developing, analyzing, decoding, or validating C-ITS and V
 
 ## Overview
 
-Cooperative Intelligent Transport Systems (C-ITS) and Vehicle-to-Everything (V2X) connect vehicles, infrastructure (RSUs), and road users over 5.9 GHz ITS-G5 (802.11p) and C-V2X. This skill provides standards, dissection pipelines, topology algorithms, and automated validation tools (`cits-lint`, `cits-mcp`).
+Cooperative Intelligent Transport Systems (C-ITS) and Vehicle-to-Everything (V2X) connect vehicles, infrastructure (RSUs), and road users over 5.9 GHz ITS-G5 (802.11p) and C-V2X. This skill provides standards, dissection pipelines, topology algorithms, and automated tools (`cits-lint`, `cits-mcp`, `cits-export`).
 
 ---
 

@@ -29,7 +29,10 @@ Engineered specifically for **AI Coding Agents** (Claude Code, OpenAI Codex, Ope
   - [5. SREM / SSEM Request Prioritization & GLOSA](#5-srem--ssem-request-prioritization--glosa)
   - [6. ESP32-C5 & Linux-based RSU Field Sniffing](#6-esp32-c5--linux-based-rsu-field-sniffing)
 - [💻 Multi-Language Reference Implementations](#-multi-language-reference-implementations)
-- [🛠️ Automated Validation Suite: CLI Linter & MCP Server](#️-automated-validation-suite-cli-linter--mcp-server)
+- [🛠️ Tool Suite: CLI Linter, 3D Geo-Visualizer & MCP Server](#️-tool-suite-cli-linter-3d-geo-visualizer--mcp-server)
+  - [1. Terminal Validator (`cits-lint`)](#1-terminal-validator-cits-lint)
+  - [2. 3D Geo-Visualizer & Exporter (`cits-export`)](#2-3d-geo-visualizer--exporter-cits-export)
+  - [3. Interactive MCP Server (`cits-mcp`)](#3-interactive-mcp-server-cits-mcp)
 - [📦 Universal Installation across AI Agent Runtimes](#-universal-installation-across-ai-agent-runtimes)
 - [🧪 Automated Test Suite & CI/CD Pipeline](#-automated-test-suite--cicd-pipeline)
 - [📚 Standards & Specifications](#-standards--specifications)
@@ -169,12 +172,12 @@ The repository provides production-tested, self-contained reference code snippet
 
 ---
 
-## 🛠️ Automated Validation Suite: CLI Linter & MCP Server
+## 🛠️ Tool Suite: CLI Linter, 3D Geo-Visualizer & MCP Server
 
-To programmatically halt LLM hallucinations and enforce empirical protocol rules at build time, the repository ships with `cits_validator`, providing both a command-line tool (`cits-lint`) and an interactive Model Context Protocol server (`cits-mcp`):
+To programmatically halt LLM hallucinations and enforce empirical protocol rules at build time, the repository ships with `cits_validator`, providing validation, export, and interactive agent tools:
 
-### 1. Terminal CLI (`cits-lint`)
-The CLI streams PCAP files with $< 2$ MB RAM footprint and statically audits source code files:
+### 1. Terminal Validator (`cits-lint`)
+Streams PCAP files with $< 2$ MB RAM footprint and statically audits source code files:
 ```bash
 # Scan a capture trace for DLT 127 length offsets, nanosecond magic, and LLC/SNAP
 cits-lint capture.pcap
@@ -183,8 +186,18 @@ cits-lint capture.pcap
 cits-lint src/v2x/ --strict --format json
 ```
 
-### 2. Interactive MCP Server (`cits-mcp`)
-Connect `cits-mcp` directly to **Antigravity**, **Claude Code**, or **Cursor** to let coding agents self-audit code snippets and packet byte-streams during pair-programming:
+### 2. 3D Geo-Visualizer & Exporter (`cits-export`)
+Converts MAPEM topologies into 3D KML (Google Earth Pro / ArcGIS) and RFC 7946 GeoJSON, enriched with LISA `LV.XML` signal group designations:
+```bash
+# Export MAPEM topology to 3D KML document with stopline Node-0 orientation markers
+cits-export --mapem intersection.json --lisa supply.xml --format kml --output intersection.kml
+
+# Export MAPEM topology to RFC 7946 GeoJSON with semantic traffic participant coloring
+cits-export --mapem intersection.json --lisa supply.xml --format geojson --output intersection.geojson
+```
+
+### 3. Interactive MCP Server (`cits-mcp`)
+Connect `cits-mcp` directly to **Antigravity**, **Claude Code**, or **Cursor** to let coding agents self-audit code snippets, packet byte-streams, and compute GLOSA trajectories during pair-programming:
 
 ```json
 {
@@ -202,6 +215,9 @@ Exposed Agent Tools:
 * `cits_inspect_hex(hex_payload, dlt)`: Zero-copy wire dissector verifying Radiotap offsets, 802.11 QoS headers, and LLC/SNAP `0x8947`.
 * `cits_check_mapem(lanes_geojson)`: Checks stopline Node-0 orientations and flags diagonal overlong chords ($> 25$ m).
 * `cits_validate_pcap(file_path)`: Streams and audits full capture files.
+* `cits_parse_lisa(xml_content)`: Ingests LISA `LV.XML` controller files and classifies signal groups (e.g. `K1` vehicle, `F5` pedestrian, `R17` bicycle).
+* `cits_compute_glosa(distance_m, speed_kmh, phase_state, time_to_phase_end_s, ...)`: Real-time Green Light Optimal Speed Advisory trajectory calculation engine.
+* `cits_export_kml(lanes_json, lisa_xml, intersection_name)`: Generates pure-Python 3D OGC KML 2.2 documents with extruded lane ribbons and stopline markers.
 
 ---
 
@@ -247,12 +263,15 @@ pytest -v
 ruff check .
 ```
 
-### Verified Test Matrix (16 Tests, 100% Green)
-- `test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
-- `test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
-- `test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.
-- `test_esp32_host_anchor.py`: Verifies boot-relative uptime translation, discontinuity detection (>2s backwards, >60s forwards), and RSSI sentinel mapping.
-- `test_sync_skill.py`: Verifies global and project-level synchronization paths.
+### Verified Test Matrix (62 Tests, 100% Green)
+- `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
+- `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
+- `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.
+- `tests/test_esp32_host_anchor.py`: Verifies boot-relative uptime translation, discontinuity detection (>2s backwards, >60s forwards), and RSSI sentinel mapping.
+- `tests/geo/`: Tests pure-Python RFC 7946 GeoJSON export, 3D OGC KML 2.2 generation, and GLOSA speed advisory trajectories (cruise, decelerate, accelerate, stop).
+- `tests/lisa/`: Tests LISA `LV.XML` supply compiler, signal group object mapping, and vehicle/pedestrian/cyclist classification heuristics.
+- `tests/cli/`: End-to-end CLI tests for `cits-lint` and `cits-export` (stdout, file output, LISA enrichment).
+- `tests/validator/`: Conformance rules R01–R05, live STDIO MCP server JSON-RPC dispatch, and subprocess E2E validations.
 
 ---
 

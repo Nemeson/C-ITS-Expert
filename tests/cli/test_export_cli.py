@@ -1,6 +1,5 @@
 import json
-import pytest
-from pathlib import Path
+
 from cits_validator.cli.export import run_cli
 
 SAMPLE_MAPEM = {

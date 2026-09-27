@@ -1,7 +1,7 @@
-import pytest
 import xml.etree.ElementTree as ET
+
 from cits_validator.geo.kml_builder import export_mapem_kml
-from cits_validator.lisa.models import LisaSupplyCatalog, LisaSignalGroup
+from cits_validator.lisa.models import LisaSignalGroup, LisaSupplyCatalog
 
 
 def test_export_mapem_kml_structure_and_coords():

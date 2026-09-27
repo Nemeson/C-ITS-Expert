@@ -1,10 +1,9 @@
-import pytest
 from cits_validator.geo.glosa import (
-    compute_glosa_advisory,
+    RECOMMENDATION_ACCELERATE,
     RECOMMENDATION_CRUISE,
     RECOMMENDATION_DECELERATE,
-    RECOMMENDATION_ACCELERATE,
     RECOMMENDATION_STOP,
+    compute_glosa_advisory,
 )
 
 

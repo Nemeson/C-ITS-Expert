@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from typing import Any
+
 from cits_validator.lisa.models import LisaSupplyCatalog
 
 KML_NS = "http://www.opengis.net/kml/2.2"
