@@ -7,6 +7,10 @@
 [![Standards](https://img.shields.io/badge/Standards-ETSI%20%7C%20ISO%20%7C%20IEEE%20%7C%20C--Roads-orange.svg)](#standards-and-specifications)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--C5%20%7C%20Linux--RSU-red.svg)](#hardware-sniffing-and-field-capture)
 
+<p align="center">
+  <img src="docs/assets/banner.jpg" alt="C-ITS Expert Header Banner" width="100%" />
+</p>
+
 **C-ITS Expert** is the authoritative, cross-platform engineering, packet dissection, and validation skill suite for **Cooperative Intelligent Transport Systems (C-ITS)** and **Vehicle-to-Everything (V2X)** communications.
 
 Engineered specifically for **AI Coding Agents** (Claude Code, OpenAI Codex, OpenCode, Antigravity agy CLI, Hermes) and human automotive/systems engineers, this repository bridges the chasm between theoretical ASN.1 standards and harsh physical field realities: IEEE 802.11p 5.9 GHz RF captures, DLT 127 Radiotap encapsulations, multi-fragment MAPEM intersection geometries, and live Linux-based Roadside Unit (RSU) deployments.

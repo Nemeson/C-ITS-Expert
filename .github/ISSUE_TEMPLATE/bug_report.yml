@@ -1,0 +1,42 @@
+name: "🐛 Bug Report"
+description: "Report a parsing failure, incorrect offset calculation, or validator false positive."
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please ensure your report follows the C-ITS Zero Data Hallucination principle.
+  - type: input
+    id: component
+    attributes:
+      label: Affected Component / Language
+      description: e.g., cits_validator, DLT 127 parser (Python/Rust/C++/Java), SREM/SSEM tracking
+      placeholder: cits_validator.rules.r01_link_layer
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce / Offending Sample
+      description: Steps to reproduce the behavior, or hex dump of the problematic packet record.
+      placeholder: |
+        1. Run `cits-lint capture.pcap`
+        2. Inspect output on packet #42
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior & Relevant Standard
+      description: What should have happened according to ETSI / ISO standards.
+      placeholder: Expected it_len to skip 36 bytes according to Radiotap spec.
+    validations:
+      required: true

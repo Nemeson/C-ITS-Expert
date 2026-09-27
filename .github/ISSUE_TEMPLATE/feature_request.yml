@@ -1,0 +1,38 @@
+name: "💡 Feature or Standards Request"
+description: "Suggest a new V2X message type (e.g. Day-2 CPM/VAM), parser language, or rule."
+title: "[FEATURE]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest an enhancement or new standard specification for C-ITS Expert.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear and concise description of what the problem or missing capability is.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution & Standards Reference
+      description: Describe the solution you'd like to see, with links to relevant ETSI/ISO/C-Roads profiles.
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Target Language / Interface
+      options:
+        - All / General Specification
+        - Python
+        - Rust
+        - TypeScript / JavaScript
+        - C++
+        - Java
+        - CLI (cits-lint)
+        - MCP (cits-mcp)
+    validations:
+      required: true

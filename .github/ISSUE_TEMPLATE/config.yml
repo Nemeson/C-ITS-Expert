@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/Nemeson/C-ITS-Expert/discussions
+    about: Ask architectural questions, share field PCAP experiences, or discuss C-ITS standards.

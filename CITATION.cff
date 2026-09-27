@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software in your research or engineering projects, please cite it as below."
+authors:
+  - family-names: "Seipel"
+    given-names: "Kevin"
+    email: "vertrieb@seipel.uk"
+title: "C-ITS Expert: The Definitive V2X Engineering Skill Suite & Automated Validator"
+version: 1.1.0
+date-released: 2026-09-27
+url: "https://github.com/Nemeson/C-ITS-Expert"
+keywords:
+  - "c-its"
+  - "v2x"
+  - "its-g5"
+  - "etsi"
+  - "asn1"
+  - "uper"
+  - "radiotap"
+  - "ai-agents"
+  - "mcp-server"
+license: MIT
