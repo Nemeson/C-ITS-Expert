@@ -41,6 +41,14 @@ def classify_signal_group(bezeichnung: str, aspects: Sequence[str]) -> str:
     return CLASS_UNKNOWN
 
 
+def _get_ci_attrib(el: ET.Element, *candidates: str) -> str | None:
+    for c in candidates:
+        for k, v in el.attrib.items():
+            if k.lower() == c.lower():
+                return v
+    return None
+
+
 def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
     if isinstance(xml_text_or_path, Path) or (
         isinstance(xml_text_or_path, str) and not xml_text_or_path.strip().startswith("<")
@@ -54,20 +62,20 @@ def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
 
     # Find intersection name
     knoten = root.find(".//Knotenpunkt")
+    if knoten is None:
+        knoten = root.find(".//Knoten")
     if knoten is not None:
-        catalog.intersection_name = knoten.get("name") or knoten.get("Name")
+        catalog.intersection_name = _get_ci_attrib(knoten, "name", "knotenname")
 
     # Find all signal groups (case-tolerant tags)
     for el in root.iter():
         tag_lower = el.tag.lower()
         if tag_lower in ("signalgruppe", "signalgroup", "signal_group", "sg"):
             obj_nr_str = (
-                el.get("ObjNr")
-                or el.get("obj_nr")
-                or el.get("id")
-                or el.get("ID")
+                _get_ci_attrib(el, "objnr", "obj_nr", "objektnr", "id")
                 or el.findtext("ObjNr")
                 or el.findtext("obj_nr")
+                or el.findtext("Objektnr")
             )
             if not obj_nr_str:
                 continue
@@ -78,21 +86,17 @@ def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
                 continue
 
             bezeichnung = (
-                el.get("Bezeichnung")
-                or el.get("bezeichnung")
-                or el.get("name")
+                _get_ci_attrib(el, "bezeichnung", "name")
                 or el.findtext("Bezeichnung")
                 or el.findtext("bezeichnung")
                 or f"SG {obj_nr}"
             ).strip()
 
             name = (
-                el.get("Kommentar")
-                or el.get("kommentar")
-                or el.get("Description")
+                _get_ci_attrib(el, "kommentar", "description")
                 or el.findtext("Kommentar")
                 or el.findtext("kommentar")
-                or f"Signalgruppe {bezeichnung}"
+                or bezeichnung
             ).strip()
 
             aspects: list[str] = []

@@ -105,7 +105,7 @@ def export_mapem_geojson(
             if lisa_catalog:
                 sg_obj = lisa_catalog.by_obj_nr(signal_group)
                 if sg_obj is not None:
-                    props["lisa_name"] = sg_obj.name or sg_obj.bezeichnung
+                    props["lisa_name"] = sg_obj.bezeichnung or sg_obj.name
                     props["lisa_type"] = sg_obj.classification
                     props["lisa_aspects"] = sg_obj.aspects
 
@@ -132,7 +132,7 @@ def export_mapem_geojson(
                 if lisa_catalog:
                     sg_obj = lisa_catalog.by_obj_nr(signal_group)
                     if sg_obj is not None:
-                        stopline_props["lisa_name"] = sg_obj.name or sg_obj.bezeichnung
+                        stopline_props["lisa_name"] = sg_obj.bezeichnung or sg_obj.name
                         stopline_props["lisa_type"] = sg_obj.classification
 
             features.append({
