@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cits-expert"
-version = "1.0.0"
+version = "1.1.0"
 description = "Universal C-ITS & V2X Knowledge, Dissection, and Engineering Skill Suite for AI Agents"
 readme = "README.md"
 authors = [{ name = "Kevin Seipel", email = "vertrieb@seipel.uk" }]
@@ -13,6 +13,10 @@ requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
 ]
+
+[project.scripts]
+cits-lint = "cits_validator.cli.main:main"
+cits-mcp = "cits_validator.mcp.server:main"
 
 [project.optional-dependencies]
 dev = [

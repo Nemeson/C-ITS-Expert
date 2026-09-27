@@ -67,6 +67,31 @@ class PythonAstAuditor(ast.NodeVisitor):
 
         self.generic_visit(node)
 
+    def visit_Return(self, node: ast.Return) -> None:
+        if node.value:
+            for subnode in ast.walk(node.value):
+                if isinstance(subnode, ast.Call):
+                    func_name = ""
+                    if isinstance(subnode.func, ast.Name):
+                        func_name = subnode.func.id
+                    elif isinstance(subnode.func, ast.Attribute):
+                        func_name = subnode.func.attr
+
+                    if func_name.lower() in ("sin", "cos"):
+                        self.violations.append(
+                            Violation(
+                                rule_id=self.rule_id,
+                                severity=Severity.ERROR,
+                                message="Detected synthetic GNSS coordinate generation using trigonometric function",
+                                line_number=node.lineno,
+                                remediation_hint=(
+                                    "Iron Law: Never synthesize coordinates with trigonometric functions (sin/cos). "
+                                    "If GNSS data is missing, field values must remain null."
+                                ),
+                            )
+                        )
+        self.generic_visit(node)
+
 
 class AntiHallucinationRule(BaseRule):
     """Detects prohibited synthetic fallback math and LLM hallucination anti-patterns."""
@@ -80,7 +105,10 @@ class AntiHallucinationRule(BaseRule):
 
     REGEX_PATTERNS = [
         (
-            re.compile(r"(?:lat|lon|lng|coord|pos)\w*\s*[=:]\s*.*(?:sin|cos)\s*\(", re.IGNORECASE),
+            re.compile(
+                r"(?:(?:lat|lon|lng|coord|pos)\w*.*?(?:sin|cos)\s*\(|(?:sin|cos)\s*\([^)]*\)\s*\*\s*0\.\d+)",
+                re.IGNORECASE,
+            ),
             "Detected synthetic GNSS coordinate generation using trigonometric function",
             "Iron Law: Never synthesize coordinates. Field values must remain null.",
         ),
