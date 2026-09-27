@@ -81,3 +81,83 @@ def test_mcp_server_dispatch_initialize_and_tools():
     content = resp["result"]["content"][0]["text"]
     result_data = json.loads(content)
     assert result_data["is_valid"] is False
+
+
+def test_tool_cits_parse_lisa_and_export_kml():
+    server = McpServer()
+
+    lisa_xml = """<?xml version="1.0" encoding="utf-8"?>
+    <Versorgung>
+      <Knoten Name="Am Hauptbahnhof" />
+      <SignalGruppe Objektnr="3" Bezeichnung="F3">
+        <Ansteuerung><Rot/><Gruen/></Ansteuerung>
+      </SignalGruppe>
+    </Versorgung>"""
+
+    # Test tools/call: cits_parse_lisa
+    call_lisa = {
+        "jsonrpc": "2.0",
+        "id": 10,
+        "method": "tools/call",
+        "params": {
+            "name": "cits_parse_lisa",
+            "arguments": {"xml_content": lisa_xml},
+        },
+    }
+    resp = server.handle_request(call_lisa)
+    assert resp["id"] == 10
+    parsed = json.loads(resp["result"]["content"][0]["text"])
+    assert parsed["intersection_name"] == "Am Hauptbahnhof"
+    assert "3" in parsed["groups"]
+    assert parsed["groups"]["3"]["classification"] == "pedestrian"
+
+    # Test tools/call: cits_export_kml
+    lanes = [
+        {
+            "lane_id": 3,
+            "lane_type": "crosswalk",
+            "nodes": [
+                {"lat": 52.5200, "lon": 13.4000, "elevation": 0.0},
+                {"lat": 52.5201, "lon": 13.4000, "elevation": 0.0},
+            ],
+            "signal_group": 3,
+        }
+    ]
+    call_kml = {
+        "jsonrpc": "2.0",
+        "id": 11,
+        "method": "tools/call",
+        "params": {
+            "name": "cits_export_kml",
+            "arguments": {"lanes_json": lanes, "lisa_xml": lisa_xml},
+        },
+    }
+    resp_kml = server.handle_request(call_kml)
+    assert resp_kml["id"] == 11
+    kml_res = json.loads(resp_kml["result"]["content"][0]["text"])
+    assert "<kml" in kml_res["kml"]
+    assert "F3" in kml_res["kml"]
+
+
+def test_tool_cits_compute_glosa():
+    server = McpServer()
+    call_glosa = {
+        "jsonrpc": "2.0",
+        "id": 12,
+        "method": "tools/call",
+        "params": {
+            "name": "cits_compute_glosa",
+            "arguments": {
+                "distance_m": 100.0,
+                "speed_kmh": 50.0,
+                "phase_state": "GREEN",
+                "time_to_phase_end_s": 15.0,
+            },
+        },
+    }
+    resp = server.handle_request(call_glosa)
+    assert resp["id"] == 12
+    glosa_res = json.loads(resp["result"]["content"][0]["text"])
+    assert glosa_res["is_pass_possible"] is True
+    assert glosa_res["recommendation"] == "CRUISE"
+

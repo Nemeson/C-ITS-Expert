@@ -7,7 +7,10 @@ from typing import Any
 from cits_validator.mcp.tools import (
     cits_audit_code,
     cits_check_mapem,
+    cits_compute_glosa,
+    cits_export_kml,
     cits_inspect_hex,
+    cits_parse_lisa,
     cits_validate_pcap,
 )
 
@@ -16,7 +19,7 @@ class McpServer:
     """Lightweight pure-Python STDIO JSON-RPC 2.0 MCP server."""
 
     SERVER_NAME = "cits-mcp"
-    SERVER_VERSION = "1.1.0"
+    SERVER_VERSION = "1.2.0"
 
     TOOL_DEFINITIONS = [
         {
@@ -85,6 +88,46 @@ class McpServer:
                 "required": ["file_path"],
             },
         },
+        {
+            "name": "cits_parse_lisa",
+            "description": "Parses and classifies LISA LV.XML supply file into structured signal groups with traffic participant classifications.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "xml_content": {"type": "string", "description": "XML text of the LISA supply file"},
+                },
+                "required": ["xml_content"],
+            },
+        },
+        {
+            "name": "cits_compute_glosa",
+            "description": "Computes instant GLOSA speed advisory window and driving recommendation based on distance and SPAT countdown.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "distance_m": {"type": "number", "description": "Remaining distance to stop line in meters"},
+                    "speed_kmh": {"type": "number", "description": "Current vehicle approach speed in km/h"},
+                    "phase_state": {"type": "string", "description": "Signal phase state ('GREEN', 'RED', 'YELLOW')"},
+                    "time_to_phase_end_s": {"type": "number", "description": "Remaining seconds of current phase"},
+                    "next_green_duration_s": {"type": "number", "description": "Optional duration in seconds of next green phase", "default": 0.0},
+                    "speed_limit_kmh": {"type": "number", "description": "Legal street speed limit in km/h", "default": 50.0},
+                },
+                "required": ["distance_m", "speed_kmh", "phase_state", "time_to_phase_end_s"],
+            },
+        },
+        {
+            "name": "cits_export_kml",
+            "description": "Generates a standards-compliant OGC KML 2.2 3D document for MAPEM topologies and LISA catalogs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "lanes_json": {"type": ["object", "array"], "description": "MAPEM topology dictionary or list of lanes"},
+                    "lisa_xml": {"type": "string", "description": "Optional LISA supply XML content for signal group enrichment"},
+                    "intersection_name": {"type": "string", "description": "Document title", "default": "C-ITS Intersection"},
+                },
+                "required": ["lanes_json"],
+            },
+        },
     ]
 
     def __init__(self) -> None:
@@ -97,6 +140,20 @@ class McpServer:
             ),
             "cits_check_mapem": lambda args: cits_check_mapem(args["lanes_geojson"]),
             "cits_validate_pcap": lambda args: cits_validate_pcap(args["file_path"]),
+            "cits_parse_lisa": lambda args: cits_parse_lisa(args["xml_content"]),
+            "cits_compute_glosa": lambda args: cits_compute_glosa(
+                distance_m=float(args["distance_m"]),
+                speed_kmh=float(args["speed_kmh"]),
+                phase_state=args["phase_state"],
+                time_to_phase_end_s=float(args["time_to_phase_end_s"]),
+                next_green_duration_s=float(args.get("next_green_duration_s", 0.0)),
+                speed_limit_kmh=float(args.get("speed_limit_kmh", 50.0)),
+            ),
+            "cits_export_kml": lambda args: cits_export_kml(
+                lanes_json=args["lanes_json"],
+                lisa_xml=args.get("lisa_xml"),
+                intersection_name=args.get("intersection_name", "C-ITS Intersection"),
+            ),
         }
 
     def handle_request(self, req: dict[str, Any]) -> dict[str, Any]:
