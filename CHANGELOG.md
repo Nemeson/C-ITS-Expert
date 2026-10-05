@@ -9,10 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned (Milestone 2 - v1.3.0: European Day-2 Suite)
-- **CPM (Collective Perception Message, ETSI TS 103 324):** Perceived object container dissection, sensor field-of-view cones, dynamic tracking coordinate scaling.
-- **VAM (Vulnerable Road User Awareness Message, ETSI TS 103 300-3):** VRU cluster profiles, trajectory forecasting, path history analysis.
-- **ETSI TS 103 097 PKI SecuredData:** Header-Audit & certificate chain verification frames.
+### Fixed
+- **The end-to-end test was not portable.** `tests/validator/test_e2e.py` pointed
+  at a fixture inside a sibling project and returned early when it was missing, so
+  on any other machine the test passed as a no-op. It now uses a committed
+  capture (`tests/fixtures/sample_dlt127.pcap`), generated and explained by
+  `scripts/make_sample_capture.py`, and asserts the full framing chain
+  (radiotap → dot11 → llc_snap → geonet → btp) was reached.
+
+### Documented
+- **Non-conformant captures are reported, not tolerated.** `R01` flags all 4333
+  records of `PCAPSender/tests/fixtures/All_UE_01.pcapng` because the 802.11
+  payload carries no LLC/SNAP header. Verified as not a false positive:
+  PCAPSender's own dissector classifies 0 of those records as ITS-G5 for the same
+  reason. Recorded as a known limitation in the README.
+
+### Planned (Milestone 3 - v1.5.0: European Day-2 Suite)
+- **CPM (Collective Perception Message, ETSI TS 103 324):** perceived object container
+  dissection over the ASN.1 modules already vendored by the conformance core.
+  Implemented as a real decoder, never a stub.
+- **VAM (Vulnerable Road User Awareness, ETSI TS 103 300-3):** VRU cluster profiles.
+- **ETSI TS 103 097 PKI SecuredData:** certificate-chain verification for the frames rule
+  R01 currently reports as `secured` but does not unwrap.
+
+---
+
+## [1.4.0] - 2026-10-04
+
+### Added
+- **ASN.1 / UPER Conformance Core (`cits_validator/asn1/`):** real PDU decoding, replacing
+  the previously advertised-but-absent UPER checks.
+  - `decoder.py`: compiles the vendored ETSI/ISO ASN.1 modules with `asn1tools` and decodes
+    CAM, DENM, MAPEM, SPATEM, SREM and SSEM from raw UPER bytes.
+  - `provenance.py`: every module is recorded with its standard, version and source URL, so a
+    decoded field can be traced back to the specification that defines it.
+  - Standards vendored under `cits_validator/asn1/standards/` (17 modules, ~708 KB): ETSI TS 102 894-2
+    v1.3.1/v2.4.1, ETSI TS 103 301 v1.3.1/v2.2.1 + ISO TS 19091 DSRC, ETSI EN 302 637-2
+    v1.4.1 / TS 103 900 v2.3.1, ETSI EN 302 637-3 v1.3.1 / TS 103 831 v2.3.1.
+  - New extra `pip install -e ".[asn1]"`; the link-layer and anti-hallucination rules stay
+    dependency-free.
+- **Rule `R06_ASN1_CONFORMANCE`:** decodes the ASN.1 payload of a capture and reports real
+  encoding faults (truncated PDU, unresolvable message, missing decoder) instead of matching
+  source code with regular expressions.
+- **PDU pipeline in `cits-export`:** `--pdu <hex> --msg-type <type>` decodes a raw PDU and
+  feeds the MAPEM topology straight into the KML / GeoJSON exporters.
+- **MCP tool `cits_decode_pdu`:** decodes a raw PDU hex string into structured fields.
+
+### Changed
+- **GeoNetworking framing (`cits_validator/core/geonet.py`):** single source of truth for the
+  link-layer → GeoNetworking → BTP offset arithmetic, shared by R01, R06 and the exporters.
+  Fixes the BTP port being read at the wrong offset: the destination port follows the
+  GeoNetworking Basic, Common and extended headers, not LLC/SNAP. The MAC header length is
+  derived from the Frame Control word (QoS Control, Address 4, HT Control). IEEE 1609.2
+  secured frames are reported as such with no BTP port, rather than a port derived from
+  ciphertext.
+- **Version is single-sourced** from the installed distribution metadata, ending the
+  `pyproject.toml` / `__init__.py` drift.
+- **Findings carry their file path** in text and JSON; directory scans were previously anonymous.
+- **Repeating findings are sampled:** at most 5 instances per rule per file are listed, with the
+  full count preserved and still counted as errors.
+
+### Fixed
+- **R02 no longer fails on its own repository.** Anti-patterns in string literals or comments
+  are not reported (the regex pass runs over masked lines; Python uses the tokenizer).
+  Trigonometry inside a named distance function is accepted and `dLat`-style identifiers are no
+  longer mistaken for coordinates. `# cits-lint: allow` suppresses a finding. Real synthesis
+  patterns are still detected in assignments and returns.
+- **PCAPNG is actually parsed.** The docs and CLI advertised `.pcapng` while the reader rejected
+  it. Section Header, Interface Description and Enhanced/Simple/Packet blocks are parsed,
+  `if_tsresol` is honoured, and per-record link types are respected.
+- **Configurable stopline chord bound:** `cits-lint --max-chord` (default 25 m).
+- `cits-lint` exits 2 with a message on an unreadable target instead of crashing.
+
+### Added (tooling)
+- `cits-lint --topology <file.json>` audits MAPEM topology documents with R03; topology JSON was
+  previously reachable by no code path.
+- `sync_skill.py --check` reports drift in every vendored skill copy; CI fails on drift.
+- CI tests Python 3.11–3.14, installs the package so the console entry points are exercised,
+  type-checks with mypy, enforces an 85 % coverage gate, runs an R02 self-audit guard and
+  verifies vendored-skill drift.
+
+---
+
+## [1.3.0] - 2026-10-04
+
+### Fixed
+- **Version drift:** `pyproject.toml` (1.2.0) and `cits_validator/__init__.py` (1.1.0) disagreed.
+- **MCP bypassed the rule registry:** `cits_audit_code` called the rule directly, so the CLI's
+  `--rules` selection had no MCP equivalent. Both now run through `RuleRegistry`.
+
+### Added
+- `cits-lint --version`.
+- **Data coverage contract:** reports carry `coverage`, `has_data`, `data_status` and
+  `missing_categories`, and the text report prints a `Data Status` line. A capture in which no
+  GeoNetworking/BTP record was reachable is reported as "No Data in Capture" instead of
+  silently passing — the failure mode the Iron Law section describes.
 
 ---
 

@@ -179,23 +179,46 @@ The repository provides production-tested, self-contained reference code snippet
 To programmatically halt LLM hallucinations and enforce empirical protocol rules at build time, the repository ships with `cits_validator`, providing validation, export, and interactive agent tools:
 
 ### 1. Terminal Validator (`cits-lint`)
-Streams PCAP files with $< 2$ MB RAM footprint and statically audits source code files:
+Streams classic PCAP **and PCAPNG** captures and statically audits source code and topology files:
 ```bash
-# Scan a capture trace for DLT 127 length offsets, nanosecond magic, and LLC/SNAP
+# Scan a capture for DLT 127 Radiotap, nanosecond magic, GeoNetworking/BTP and (optionally) ASN.1
 cits-lint capture.pcap
+cits-lint capture.pcapng --asn1 --release r2
 
 # Audit source code for prohibited synthetic GNSS math and modulo signal groups
 cits-lint src/v2x/ --strict --format json
+
+# Audit a MAPEM topology document (connections / multi-fragment accumulation)
+cits-lint --topology intersection.json --max-chord 25
+
+# Decode one PDU straight from hex
+cits-lint --pdu 0204000013900000181c81000000001043000320 --msg-type SPATEM
 ```
 
+**Rules:**
+
+| ID | Checks |
+| :--- | :--- |
+| `R01` | Radiotap length, 802.11 QoS/WDS MAC header, LLC/SNAP `0x8947`, GeoNetworking framing, BTP port. IEEE 1609.2 secured frames are counted as `secured`, not mis-decoded. |
+| `R02` | Anti-hallucination source audit: synthetic GNSS drift, modulo signal groups, 90 s static cycles. Strings/comments are not treated as code; `# cits-lint: allow` silences a line. |
+| `R03` | Multi-fragment MAPEM accumulation and stopline chord bounds (configurable via `--max-chord`). |
+| `R04` | SREM/SSEM 4-tuple session tracking and unclosed priority requests. |
+| `R05` | ESP32-C5 `ITS5`/`ITS6` framing, RSSI sentinel, host time anchoring. |
+| `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). |
+
+Every report carries a **data coverage** section: a capture in which no GeoNetworking/BTP record was reachable states `NO DATA IN CAPTURE` instead of passing silently, and `error_count` stays authoritative even when repeated findings are listed only as a sample.
+
 ### 2. 3D Geo-Visualizer & Exporter (`cits-export`)
-Converts MAPEM topologies into 3D KML (Google Earth Pro / ArcGIS) and RFC 7946 GeoJSON, enriched with LISA `LV.XML` signal group designations:
+Converts MAPEM topologies — from a JSON document **or from a raw MAPEM PDU** — into 3D KML (Google Earth Pro / ArcGIS) and RFC 7946 GeoJSON, enriched with LISA `LV.XML` signal group designations:
 ```bash
 # Export MAPEM topology to 3D KML document with stopline Node-0 orientation markers
 cits-export --mapem intersection.json --lisa supply.xml --format kml --output intersection.kml
 
 # Export MAPEM topology to RFC 7946 GeoJSON with semantic traffic participant coloring
 cits-export --mapem intersection.json --lisa supply.xml --format geojson --output intersection.geojson
+
+# Decode a real MAPEM PDU and map the geometry directly (no intermediate JSON)
+cits-export --pdu a2b4c6... --release r1 --format geojson --output intersection.geojson
 ```
 
 ### 3. Interactive MCP Server (`cits-mcp`)
@@ -213,13 +236,15 @@ Connect `cits-mcp` directly to **Antigravity**, **Claude Code**, or **Cursor** t
 ```
 
 Exposed Agent Tools:
-* `cits_audit_code(code, language)`: In-memory AST/regex scanner detecting `sin(t)` coordinate drift, modulo phase arithmetic, and 90-second static cycle loops.
-* `cits_inspect_hex(hex_payload, dlt)`: Zero-copy wire dissector verifying Radiotap offsets, 802.11 QoS headers, and LLC/SNAP `0x8947`.
-* `cits_check_mapem(lanes_geojson)`: Checks stopline Node-0 orientations and flags diagonal overlong chords ($> 25$ m).
-* `cits_validate_pcap(file_path)`: Streams and audits full capture files.
+* `cits_audit_code(code, language, rules)`: Registry-backed scanner detecting `sin(t)` coordinate drift, modulo phase arithmetic, and 90-second static cycle loops (same rule set as `cits-lint --rules`).
+* `cits_inspect_hex(hex_payload, dlt)`: Wire dissector verifying Radiotap offsets, 802.11 QoS headers, LLC/SNAP `0x8947`, GeoNetworking framing and the BTP port.
+* `cits_check_mapem(lanes_geojson, max_chord_meters)`: Checks stopline Node-0 orientations and flags diagonal overlong chords.
+* `cits_validate_pcap(file_path)`: Streams and audits full PCAP/PCAPNG capture files.
 * `cits_parse_lisa(xml_content)`: Ingests LISA `LV.XML` controller files and classifies signal groups (e.g. `K1` vehicle, `F5` pedestrian, `R17` bicycle).
 * `cits_compute_glosa(distance_m, speed_kmh, phase_state, time_to_phase_end_s, ...)`: Real-time Green Light Optimal Speed Advisory trajectory calculation engine.
 * `cits_export_kml(lanes_json, lisa_xml, intersection_name)`: Generates pure-Python 3D OGC KML 2.2 documents with extruded lane ribbons and stopline markers.
+* `cits_decode_pdu(hex_payload, msg_type, release)`: Decodes a CAM/DENM/MAPEM/SPATEM/SREM/SSEM PDU against the vendored ETSI/ISO modules and returns the fields plus the standards used.
+* `cits_decode_mapem_to_geojson(hex_payload, release, lisa_xml)`: Decodes a MAPEM PDU straight to GeoJSON, reporting `lane_count` and `data_status` so an empty result is visible.
 
 ---
 
@@ -258,22 +283,49 @@ The skill suite is fully covered by an automated test suite verifying both speci
 # Install dependencies
 pip install -e .[dev]
 
-# Run full test suite
-pytest -v
+# Optional: ASN.1 / UPER conformance core (rule R06, PDU decoding)
+pip install -e .[asn1]
 
-# Run linter
+# Run full test suite (the CI coverage gate is 85 %)
+pytest -q --cov=cits_validator --cov-fail-under=85
+
+# Run linter and type checker
 ruff check .
+mypy cits_validator
 ```
 
-### Verified Test Matrix (67 Tests, 100% Green)
+### Verified Test Matrix (208 Tests, 100% Green)
 - `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
 - `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
 - `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.
 - `tests/test_esp32_host_anchor.py`: Verifies boot-relative uptime translation, discontinuity detection (>2s backwards, >60s forwards), and RSSI sentinel mapping.
 - `tests/geo/`: Tests pure-Python RFC 7946 GeoJSON export, 3D OGC KML 2.2 generation, and GLOSA speed advisory trajectories (cruise, decelerate, accelerate, stop).
 - `tests/lisa/`: Tests LISA `LV.XML` supply compiler, signal group object mapping, and vehicle/pedestrian/cyclist classification heuristics.
-- `tests/cli/`: End-to-end CLI tests for `cits-lint` and `cits-export` (stdout, file output, LISA enrichment).
-- `tests/validator/`: Conformance rules R01–R05, live STDIO MCP server JSON-RPC dispatch, and subprocess E2E validations.
+- `tests/cli/`: End-to-end CLI tests for `cits-lint` and `cits-export` (stdout, file output, LISA enrichment, `--pdu`).
+- `tests/asn1/`: ASN.1 conformance against byte-exact reference vectors from an independent encoder **and real field MAPEM captures** across both release baselines; the vendored-module provenance, the failure modes (truncated/garbage PDU never yields a partial decode) and the PDU → lane-geometry adapter.
+- `tests/validator/`: Conformance rules R01–R06 including their error branches, live STDIO MCP server JSON-RPC dispatch, PCAPNG block parsing, and subprocess E2E validations.
+
+### Standards corpus
+The ASN.1 modules the conformance core compiles are vendored under
+`cits_validator/asn1/standards/` (Release 1 and Release 2) and recorded in
+`manifest.json` with their standard, version and origin. Refresh them with:
+
+```bash
+python scripts/vendor_asn1.py --source <path-to-standards-corpus>
+```
+
+### Known limitation: non-conformant captures
+A capture whose 802.11 payload does not carry the LLC/SNAP header
+`aa aa 03 00 00 00 89 47` is reported by `R01` as a framing error on every
+record. This is intentional — the bytes do not contain a GeoNetworking frame at
+the position the link layer says they should.
+
+Concretely, `PCAPSender/tests/fixtures/All_UE_01.pcapng` (DLT 105, 4333 records)
+yields 4333 `R01` findings. That is not a false positive: PCAPSender's own
+dissector classifies **0 of those 4333** records as ITS-G5 for the same reason.
+The origin is in the producing pipeline (firmware or capture writer), not in this
+audit. Findings are listed as a sample (5 per rule per file) while `error_count`
+keeps the authoritative total.
 
 ---
 
