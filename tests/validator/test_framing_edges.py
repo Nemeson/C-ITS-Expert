@@ -108,7 +108,7 @@ def test_geonet_common_header_next_header_not_btp():
 def test_message_type_for_unknown_and_none():
     assert message_type_for_port(None) == "UNKNOWN"
     assert message_type_for_port(9999) == "UNKNOWN"
-    assert message_type_for_port(2010) == "VAM"
+    assert message_type_for_port(2018) == "VAM"
 
 
 def test_geonet_frame_various_header_types():

@@ -204,7 +204,22 @@ cits-lint --pdu 0204000013900000181c81000000001043000320 --msg-type SPATEM
 | `R03` | Multi-fragment MAPEM accumulation and stopline chord bounds (configurable via `--max-chord`). |
 | `R04` | SREM/SSEM 4-tuple session tracking and unclosed priority requests. |
 | `R05` | ESP32-C5 `ITS5`/`ITS6` framing, RSSI sentinel, host time anchoring. |
-| `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). |
+| `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). Decodes CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM and VAM. |
+
+### BTP destination ports (ETSI TS 103 248, Table 1)
+
+| Port | Service | Port | Service |
+| :--- | :--- | :--- | :--- |
+| 2001 | CAM | 2009 | **CPM** (TS 103 324) |
+| 2002 | DENM | 2010 | EVCSN POI |
+| 2003 | MAPEM | 2011 | TPG (TRM/TCM/…) |
+| 2004 | SPATEM | 2013 | RTCMEM |
+| 2005 | SAEM | **2018** | **VAM** (TS 103 300-3) |
+| 2006 | IVIM | 2019 | IMZM |
+| 2007 | SREM | | |
+| 2008 | SSEM | | |
+
+CPM and VAM are Release 2 services with no Release 1 baseline; `--release r1` refuses them rather than decoding against the wrong data dictionary.
 
 Every report carries a **data coverage** section: a capture in which no GeoNetworking/BTP record was reachable states `NO DATA IN CAPTURE` instead of passing silently, and `error_count` stays authoritative even when repeated findings are listed only as a sample.
 
@@ -294,7 +309,7 @@ ruff check .
 mypy cits_validator
 ```
 
-### Verified Test Matrix (208 Tests, 100% Green)
+### Verified Test Matrix (225 Tests, 100% Green)
 - `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
 - `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
 - `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.

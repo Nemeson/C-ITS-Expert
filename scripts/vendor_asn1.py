@@ -167,6 +167,64 @@ MODULES: list[tuple[str, str, str, str, str, str]] = [
         "DENM",
         "https://forge.etsi.org/rep/ITS/asn1/denm_ts103831",
     ),
+    # Release 2 — Collective Perception (CPM, ETSI TS 103 324)
+    (
+        "cpm/ts103324/v2.1.1/asn/CPM-PDU-Descriptions.asn",
+        "r2",
+        "ETSI TS 103 324",
+        "v2.1.1",
+        "CPM",
+        "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+    ),
+    (
+        "cpm/ts103324/v2.1.1/asn/CPM-OriginatingStationContainers.asn",
+        "r2",
+        "ETSI TS 103 324",
+        "v2.1.1",
+        "CPM",
+        "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+    ),
+    (
+        "cpm/ts103324/v2.1.1/asn/CPM-PerceivedObjectContainer.asn",
+        "r2",
+        "ETSI TS 103 324",
+        "v2.1.1",
+        "CPM",
+        "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+    ),
+    (
+        "cpm/ts103324/v2.1.1/asn/CPM-PerceptionRegionContainer.asn",
+        "r2",
+        "ETSI TS 103 324",
+        "v2.1.1",
+        "CPM",
+        "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+    ),
+    (
+        "cpm/ts103324/v2.1.1/asn/CPM-SensorInformationContainer.asn",
+        "r2",
+        "ETSI TS 103 324",
+        "v2.1.1",
+        "CPM",
+        "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+    ),
+    # Release 2 — VRU Awareness (VAM, ETSI TS 103 300-3)
+    (
+        "vru-vam/ts103300-3/v2.3.1/VAM-PDU-Descriptions.asn",
+        "r2",
+        "ETSI TS 103 300-3",
+        "v2.3.1",
+        "VAM",
+        "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+    ),
+    (
+        "vru-vam/ts103300-3/v2.3.1/motorcyclist-special-container.asn",
+        "r2",
+        "ETSI TS 103 300-3",
+        "v2.3.1",
+        "VAM",
+        "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+    ),
 ]
 
 

@@ -263,4 +263,13 @@ def test_r06_standards_dir_exists():
 
 
 def test_message_types_constant_is_complete():
-    assert set(MESSAGE_TYPES) == {"CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM"}
+    assert set(MESSAGE_TYPES) == {
+        "CAM",
+        "DENM",
+        "MAPEM",
+        "SPATEM",
+        "SREM",
+        "SSEM",
+        "CPM",
+        "VAM",
+    }

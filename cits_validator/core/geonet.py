@@ -61,12 +61,22 @@ BTP_PORTS = {
     2002: "DENM",
     2003: "MAPEM",
     2004: "SPATEM",
+    2005: "SAEM",
     2006: "IVIM",
     2007: "SREM",
     2008: "SSEM",
-    2009: "TLM",
-    2010: "VAM",
+    2009: "CPM",
+    2010: "EVCSN",  # EVCSN POI message (ETSI TS 101 556-1)
+    2011: "TPG",  # TRM/TCM/VDRM/VDPM/EOFM (ETSI TS 101 556-2)
+    2013: "RTCMEM",
+    2018: "VAM",  # VA (VAM), ETSI TS 103 300-3
+    2019: "IMZM",
 }
+# Source: ETSI TS 103 248 Table 1 "List of well-known BTP port number values"
+# (v2.4.1), which lists 2 009 = CP (CPM) and 2 018 = VA (VAM). An earlier draft
+# of this table carried VAM at 2 010, which the standard assigns to the EVCSN POI
+# message; the value was corrected against the specification rather than kept
+# because it appeared in a neighbouring implementation.
 
 
 @dataclass

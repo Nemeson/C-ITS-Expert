@@ -22,9 +22,20 @@ from typing import Any
 from cits_validator.asn1.provenance import STANDARDS_DIR, load_manifest
 
 # Message types this core can decode, keyed by the name callers use.
-MESSAGE_TYPES = ("CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM")
+MESSAGE_TYPES = ("CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM", "CPM", "VAM")
 
 RELEASES = ("r1", "r2")
+
+# The ASN.1 top-level type name where it differs from the message label we use.
+# CPM's PDU is `CollectivePerceptionMessage`, not `CPM`.
+_SPEC_NAMES: dict[str, str] = {
+    "CPM": "CollectivePerceptionMessage",
+}
+
+# CPM (ETSI TS 103 324) and VAM (ETSI TS 103 300-3) are Release 2 services and
+# have no Release 1 baseline at all. Decoding them as "r1" would be meaningless,
+# so it is refused rather than silently attempted.
+R2_ONLY = ("CPM", "VAM")
 
 # Which vendored modules each (release, message) pair needs. The compiled spec
 # gets exactly these files, so an unexpected import surfaces as a CompileError
@@ -74,6 +85,25 @@ _MODULE_SETS: dict[tuple[str, str], tuple[str, ...]] = {
     ("r2", "MAPEM"): ("ETSI-ITS-CDD.asn", "DSRC.asn", "MAPEM-PDU-Descriptions.asn"),
     ("r2", "SREM"): ("ETSI-ITS-CDD.asn", "DSRC.asn", "SREM-PDU-Descriptions.asn"),
     ("r2", "SSEM"): ("ETSI-ITS-CDD.asn", "DSRC.asn", "SSEM-PDU-Descriptions.asn"),
+    (
+        "r2",
+        "CPM",
+    ): (
+        "ETSI-ITS-CDD.asn",
+        "CPM-PDU-Descriptions.asn",
+        "CPM-OriginatingStationContainers.asn",
+        "CPM-PerceivedObjectContainer.asn",
+        "CPM-PerceptionRegionContainer.asn",
+        "CPM-SensorInformationContainer.asn",
+    ),
+    (
+        "r2",
+        "VAM",
+    ): (
+        "ETSI-ITS-CDD.asn",
+        "VAM-PDU-Descriptions.asn",
+        "motorcyclist-special-container.asn",
+    ),
 }
 
 
@@ -125,6 +155,11 @@ def _module_paths(release: str, message_type: str) -> list[Path]:
     if message_type not in MESSAGE_TYPES:
         raise PduDecodeError(
             f"Unsupported message type '{message_type}' (expected one of {MESSAGE_TYPES})"
+        )
+    if message_type in R2_ONLY and release != "r2":
+        raise PduDecodeError(
+            f"{message_type} is a Release 2 service and has no Release 1 baseline; "
+            f"decode it with release='r2'"
         )
     names = _MODULE_SETS[(release, message_type)]
     paths = [STANDARDS_DIR / release / name for name in names]
@@ -188,8 +223,10 @@ def decode_pdu(
     message_type = message_type.upper()
     spec = _compile(release, message_type)
 
+    # CPM's top-level ASN.1 type is `CollectivePerceptionMessage`.
+    spec_name = _SPEC_NAMES.get(message_type, message_type)
     try:
-        value = spec.decode(message_type, data)
+        value = spec.decode(spec_name, data)
     except Exception as exc:
         raise PduDecodeError(
             f"{message_type} ({release}) failed to decode: {type(exc).__name__}: {exc}"

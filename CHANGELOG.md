@@ -9,7 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **CPM and VAM decoding (ETSI TS 103 324 / TS 103 300-3).** The two Release 2
+  day-2 services are now decodable from raw UPER bytes, with their ASN.1 modules
+  vendored (24 modules total). Both are Release 2 only and have no Release 1
+  baseline, so `decode_pdu(..., release="r1")` refuses them instead of compiling
+  against the wrong CDD module. CPM's ASN.1 top-level type is
+  `CollectivePerceptionMessage`, not `CPM`; the mapping is explicit.
+  Verified against byte-exact vectors produced by an independent encoder for both
+  message types.
+
 ### Fixed
+- **VAM was mapped to the wrong BTP port.** The port table carried `2010: VAM`,
+  inherited from a neighbouring implementation. ETSI TS 103 248 (Table 1 of
+  v2.4.1) assigns **2 009 to CP (CPM)** and **2 018 to VA (VAM)**; 2 010 is the
+  EVCSN POI message. The table now follows the specification, with 2005 (SAEM),
+  2011 (TPG), 2013 (RTCMEM) and 2019 (IMZM) added. Because the port selects the
+  decoder, the wrong entry silently mis-decoded VAM traffic.
 - **The end-to-end test was not portable.** `tests/validator/test_e2e.py` pointed
   at a fixture inside a sibling project and returned early when it was missing, so
   on any other machine the test passed as a no-op. It now uses a committed
@@ -40,10 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ASN.1 / UPER Conformance Core (`cits_validator/asn1/`):** real PDU decoding, replacing
   the previously advertised-but-absent UPER checks.
   - `decoder.py`: compiles the vendored ETSI/ISO ASN.1 modules with `asn1tools` and decodes
-    CAM, DENM, MAPEM, SPATEM, SREM and SSEM from raw UPER bytes.
+    CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM and VAM from raw UPER bytes.
   - `provenance.py`: every module is recorded with its standard, version and source URL, so a
     decoded field can be traced back to the specification that defines it.
-  - Standards vendored under `cits_validator/asn1/standards/` (17 modules, ~708 KB): ETSI TS 102 894-2
+  - Standards vendored under `cits_validator/asn1/standards/` (24 modules): ETSI TS 102 894-2
     v1.3.1/v2.4.1, ETSI TS 103 301 v1.3.1/v2.2.1 + ISO TS 19091 DSRC, ETSI EN 302 637-2
     v1.4.1 / TS 103 900 v2.3.1, ETSI EN 302 637-3 v1.3.1 / TS 103 831 v2.3.1.
   - New extra `pip install -e ".[asn1]"`; the link-layer and anti-hallucination rules stay

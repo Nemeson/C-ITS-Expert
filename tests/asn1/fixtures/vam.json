@@ -1,0 +1,11 @@
+{
+  "minimal": {
+    "hex": "0210000026b7d4310006a7969c039a33fc00050050000c57630801c20001e002940bfff000",
+    "note": "VAM, ETSI TS 103 300-3 v2.3.1, messageId 16 (pedestrian), encoded with asn1tools"
+  },
+  "standards": [
+    "ETSI TS 102 894-2 v2.4.1",
+    "ETSI TS 103 300-3 v2.3.1"
+  ],
+  "btp_port": 2018
+}

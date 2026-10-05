@@ -153,6 +153,69 @@
       "scope": "DENM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/denm_ts103831",
       "source_path": "denm/ts103831/v2.3.1/DENM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/CPM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 324",
+      "version": "v2.1.1",
+      "scope": "CPM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+      "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/CPM-OriginatingStationContainers.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 324",
+      "version": "v2.1.1",
+      "scope": "CPM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+      "source_path": "cpm/ts103324/v2.1.1/asn/CPM-OriginatingStationContainers.asn"
+    },
+    {
+      "file": "r2/CPM-PerceivedObjectContainer.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 324",
+      "version": "v2.1.1",
+      "scope": "CPM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+      "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PerceivedObjectContainer.asn"
+    },
+    {
+      "file": "r2/CPM-PerceptionRegionContainer.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 324",
+      "version": "v2.1.1",
+      "scope": "CPM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+      "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PerceptionRegionContainer.asn"
+    },
+    {
+      "file": "r2/CPM-SensorInformationContainer.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 324",
+      "version": "v2.1.1",
+      "scope": "CPM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
+      "source_path": "cpm/ts103324/v2.1.1/asn/CPM-SensorInformationContainer.asn"
+    },
+    {
+      "file": "r2/VAM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 300-3",
+      "version": "v2.3.1",
+      "scope": "VAM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+      "source_path": "vru-vam/ts103300-3/v2.3.1/VAM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/motorcyclist-special-container.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 300-3",
+      "version": "v2.3.1",
+      "scope": "VAM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+      "source_path": "vru-vam/ts103300-3/v2.3.1/motorcyclist-special-container.asn"
     }
   ]
 }
