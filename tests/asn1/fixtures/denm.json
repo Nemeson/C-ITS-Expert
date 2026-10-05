@@ -1,0 +1,121 @@
+{
+  "minimal": {
+    "hex": "0201000182b9000000c15c8000b0ad5418830c2b550640054e9edc4733b1ab40640323841983400f",
+    "json": {
+      "header": {
+        "protocolVersion": 2,
+        "messageID": 1,
+        "stationID": 99001
+      },
+      "denm": {
+        "management": {
+          "actionID": {
+            "originatingStationID": 99001,
+            "sequenceNumber": 1
+          },
+          "detectionTime": 1672531199000,
+          "referenceTime": 1672531200000,
+          "eventPosition": {
+            "latitude": 524616900,
+            "longitude": 133253300,
+            "positionConfidenceEllipse": {
+              "semiMajorConfidence": 100,
+              "semiMinorConfidence": 50,
+              "semiMajorOrientation": 900
+            },
+            "altitude": {
+              "altitudeValue": 4500,
+              "altitudeConfidence": "alt-000-01"
+            }
+          },
+          "stationType": 15
+        }
+      }
+    }
+  },
+  "roadworks": {
+    "hex": "0201000182b9850000c15c800130ad5418830c2b550640054e9edc4733b1ab406403238419834060e100f1406020",
+    "json": {
+      "header": {
+        "protocolVersion": 2,
+        "messageID": 1,
+        "stationID": 99001
+      },
+      "denm": {
+        "management": {
+          "actionID": {
+            "originatingStationID": 99001,
+            "sequenceNumber": 2
+          },
+          "detectionTime": 1672531199000,
+          "referenceTime": 1672531200000,
+          "eventPosition": {
+            "latitude": 524616900,
+            "longitude": 133253300,
+            "positionConfidenceEllipse": {
+              "semiMajorConfidence": 100,
+              "semiMinorConfidence": 50,
+              "semiMajorOrientation": 900
+            },
+            "altitude": {
+              "altitudeValue": 4500,
+              "altitudeConfidence": "alt-000-01"
+            }
+          },
+          "relevanceDistance": "lessThan500m",
+          "validityDuration": 3600,
+          "stationType": 15
+        },
+        "situation": {
+          "informationQuality": 5,
+          "eventType": {
+            "causeCode": 3,
+            "subCauseCode": 1
+          }
+        }
+      }
+    }
+  },
+  "cancellation": {
+    "hex": "0201000182b9880000c15c800130ad5418830c2b55077882a74f6e2399d8d5a0320191c20cc1a0078e0301",
+    "json": {
+      "header": {
+        "protocolVersion": 2,
+        "messageID": 1,
+        "stationID": 99001
+      },
+      "denm": {
+        "management": {
+          "actionID": {
+            "originatingStationID": 99001,
+            "sequenceNumber": 2
+          },
+          "detectionTime": 1672531199000,
+          "referenceTime": 1672531210000,
+          "termination": "isCancellation",
+          "eventPosition": {
+            "latitude": 524616900,
+            "longitude": 133253300,
+            "positionConfidenceEllipse": {
+              "semiMajorConfidence": 100,
+              "semiMinorConfidence": 50,
+              "semiMajorOrientation": 900
+            },
+            "altitude": {
+              "altitudeValue": 4500,
+              "altitudeConfidence": "alt-000-01"
+            }
+          },
+          "stationType": 15
+        },
+        "situation": {
+          "informationQuality": 7,
+          "eventType": {
+            "causeCode": 3,
+            "subCauseCode": 1
+          }
+        }
+      }
+    }
+  }
+}

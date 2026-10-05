@@ -1,0 +1,158 @@
+{
+  "source": "C:\\PythonTools\\cits-inspector-v2\\docs\\standards\\asn",
+  "modules": [
+    {
+      "file": "r1/ITS-Container.asn",
+      "release": "r1",
+      "standard": "ETSI TS 102 894-2",
+      "version": "v1.3.1",
+      "scope": "CDD",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+      "source_path": "cdd/ts102894-2/v1.3.1/ITS-Container.asn"
+    },
+    {
+      "file": "r1/SPATEM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI TS 103 301",
+      "version": "v1.3.1",
+      "scope": "SPATEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v1.3.1/SPATEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r1/MAPEM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI TS 103 301",
+      "version": "v1.3.1",
+      "scope": "MAPEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v1.3.1/MAPEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r1/SREM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI TS 103 301",
+      "version": "v1.3.1",
+      "scope": "SREM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v1.3.1/SREM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r1/SSEM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI TS 103 301",
+      "version": "v1.3.1",
+      "scope": "SSEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v1.3.1/SSEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r1/ISO-TS-19091-DSRC.raw.asn",
+      "release": "r1",
+      "standard": "ISO TS 19091",
+      "version": "ed-2",
+      "scope": "DSRC (SPAT/MAP/SRM/SSM)",
+      "source_url": "https://standards.iso.org/iso/ts/19091",
+      "source_path": "infrastructure/ts103301/v2.2.1/reference/ISO-TS-19091-DSRC.raw.asn"
+    },
+    {
+      "file": "r1/ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn",
+      "release": "r1",
+      "standard": "ISO 24534-3",
+      "version": "ed-3",
+      "scope": "ElectronicRegistrationIdentificationVehicleDataModule",
+      "source_url": "https://standards.iso.org/iso/24534/-3",
+      "source_path": "infrastructure/ts103301/v2.1.1/iso-patched/ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn"
+    },
+    {
+      "file": "r1/CAM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI EN 302 637-2",
+      "version": "v1.4.1",
+      "scope": "CAM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2",
+      "source_path": "cam/en302637-2/v1.4.1/CAM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r1/DENM-PDU-Descriptions.asn",
+      "release": "r1",
+      "standard": "ETSI EN 302 637-3",
+      "version": "v1.3.1",
+      "scope": "DENM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/denm_en302637_3",
+      "source_path": "denm/en302637-3/v1.3.1/DENM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/ETSI-ITS-CDD.asn",
+      "release": "r2",
+      "standard": "ETSI TS 102 894-2",
+      "version": "v2.4.1",
+      "scope": "CDD",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+      "source_path": "cdd/ts102894-2/v2.4.1/ETSI-ITS-CDD.asn"
+    },
+    {
+      "file": "r2/SPATEM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 301",
+      "version": "v2.2.1",
+      "scope": "SPATEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v2.2.1/SPATEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/MAPEM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 301",
+      "version": "v2.2.1",
+      "scope": "MAPEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v2.2.1/MAPEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/SREM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 301",
+      "version": "v2.2.1",
+      "scope": "SREM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v2.2.1/SREM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/SSEM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 301",
+      "version": "v2.2.1",
+      "scope": "SSEM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v2.2.1/SSEM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/DSRC.asn",
+      "release": "r2",
+      "standard": "ISO TS 19091 / ETSI TS 103 301",
+      "version": "v2.2.1",
+      "scope": "ETSI-ITS-DSRC",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
+      "source_path": "infrastructure/ts103301/v2.2.1/DSRC.asn"
+    },
+    {
+      "file": "r2/CAM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 900",
+      "version": "v2.3.1",
+      "scope": "CAM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cam_ts103900",
+      "source_path": "cam/ts103900/v2.3.1/CAM-PDU-Descriptions.asn"
+    },
+    {
+      "file": "r2/DENM-PDU-Descriptions.asn",
+      "release": "r2",
+      "standard": "ETSI TS 103 831",
+      "version": "v2.3.1",
+      "scope": "DENM",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/denm_ts103831",
+      "source_path": "denm/ts103831/v2.3.1/DENM-PDU-Descriptions.asn"
+    }
+  ]
+}

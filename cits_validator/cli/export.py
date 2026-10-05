@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 from cits_validator.geo.geojson_builder import export_mapem_geojson
 from cits_validator.geo.kml_builder import export_mapem_kml
@@ -22,8 +22,18 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "-m",
         "--mapem",
-        required=True,
         help="Path to MAPEM JSON file (containing lanes or topology)",
+    )
+    parser.add_argument(
+        "--pdu",
+        metavar="HEX",
+        help="Raw MAPEM PDU as a hex string; decoded directly to geometry (needs the ASN.1 extra)",
+    )
+    parser.add_argument(
+        "--release",
+        choices=["r1", "r2"],
+        default="r1",
+        help="ASN.1 release baseline for --pdu decoding (default: r1)",
     )
     parser.add_argument(
         "-l",
@@ -54,15 +64,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 0
 
-    mapem_path = Path(args.mapem)
-    if not mapem_path.is_file():
-        print(f"Error: MAPEM file '{mapem_path}' not found.", file=sys.stderr)
-        return 2
-
-    try:
-        mapem_data = json.loads(mapem_path.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"Error: Failed to parse MAPEM JSON file '{mapem_path}': {e}", file=sys.stderr)
+    if not args.mapem and not args.pdu:
+        print("Error: one of --mapem or --pdu is required.", file=sys.stderr)
         return 2
 
     lisa_catalog: LisaSupplyCatalog | None = None
@@ -76,6 +79,42 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             lisa_catalog = parse_lisa_supply(xml_text)
         except Exception as e:
             print(f"Error: Failed to parse LISA supply XML '{lisa_path}': {e}", file=sys.stderr)
+            return 2
+
+    if args.pdu:
+        # Decode the PDU first, then treat the resulting lanes exactly like a
+        # hand-authored topology — one code path, so both produce identical output.
+        from cits_validator.asn1.decoder import PduDecodeError, decode_pdu
+        from cits_validator.geo.mapem_pdu import mapem_pdu_to_lanes
+
+        try:
+            raw = bytes.fromhex(args.pdu.strip().replace(" ", "").replace("0x", ""))
+        except ValueError as e:
+            print(f"Error: --pdu is not valid hexadecimal: {e}", file=sys.stderr)
+            return 2
+        try:
+            decoded = decode_pdu(raw, "MAPEM", args.release)
+        except PduDecodeError as e:
+            print(f"Error: MAPEM PDU decoding failed: {e}", file=sys.stderr)
+            return 1
+        lanes = mapem_pdu_to_lanes(decoded.value)
+        if not lanes:
+            print(
+                "Error: the decoded MAPEM carried no usable lane geometry. "
+                "No geometry was synthesised.",
+                file=sys.stderr,
+            )
+            return 1
+        mapem_data: Any = {"lanes": lanes}
+    else:
+        mapem_path = Path(args.mapem)
+        if not mapem_path.is_file():
+            print(f"Error: MAPEM file '{mapem_path}' not found.", file=sys.stderr)
+            return 2
+        try:
+            mapem_data = json.loads(mapem_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"Error: Failed to parse MAPEM JSON file '{mapem_path}': {e}", file=sys.stderr)
             return 2
 
     if args.format == "geojson":
