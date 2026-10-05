@@ -72,9 +72,18 @@ Standard European C-ITS BTP Destination Ports:
 | **2002** | **DENM** | Decentralized Environmental Notification | ETSI EN 302 637-3 / TS 103 831 |
 | **2003** | **MAPEM** | Map Extended (Topology) | ISO TS 19091 / ETSI TS 103 301 |
 | **2004** | **SPATEM** | Signal Phase and Timing Extended | ISO TS 19091 / ETSI TS 103 301 |
+| **2005** | **SAEM** | Services Announcement Extended | ETSI EN 302 890-1 |
 | **2006** | **IVIM** | Infrastructure to Vehicle Information | ISO TS 19321 / ETSI TS 103 301 |
 | **2007** | **SREM** | Signal Request Extended (Priority) | ISO TS 19091 / ETSI TS 103 301 |
 | **2008** | **SSEM** | Signal Status Extended (Priority Status) | ISO TS 19091 / ETSI TS 103 301 |
+| **2009** | **CPM** | Collective Perception Message | ETSI TS 103 324 |
+| **2010** | **EVCSN POI** | Electric Vehicle Charging Spot Notification | ETSI TS 101 556-1 |
+| **2011** | **TPG** | TRM / TCM / VDRM / VDPM / EOFM | ETSI TS 101 556-2 |
+| **2013** | **RTCMEM** | RTCM Extended Message | ETSI TS 103 301 |
+| **2018** | **VAM** | VRU Awareness Message | ETSI TS 103 300-3 |
+| **2019** | **IMZM** | Interference Management Zone Message | ETSI TS 103 724 |
+
+Port assignments follow **ETSI TS 103 248, Table 1** (v2.4.1). Two values are easily confused and worth stating: **VAM is 2 018, not 2 010** — 2 010 is the EVCSN POI message — and **CPM is 2 009**. Because the BTP port selects the decoder, a wrong entry does not fail loudly; it silently routes a message to the wrong decoder.
 
 ---
 
