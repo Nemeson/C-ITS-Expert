@@ -10,47 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **CPM and VAM decoding (ETSI TS 103 324 / TS 103 300-3).** The two Release 2
-  day-2 services are now decodable from raw UPER bytes, with their ASN.1 modules
-  vendored (24 modules total). Both are Release 2 only and have no Release 1
-  baseline, so `decode_pdu(..., release="r1")` refuses them instead of compiling
-  against the wrong CDD module. CPM's ASN.1 top-level type is
-  `CollectivePerceptionMessage`, not `CPM`; the mapping is explicit.
-  Verified against byte-exact vectors produced by an independent encoder for both
-  message types.
+
+### Changed
 
 ### Fixed
-- **VAM was mapped to the wrong BTP port.** The port table carried `2010: VAM`,
-  inherited from a neighbouring implementation. ETSI TS 103 248 (Table 1 of
-  v2.4.1) assigns **2 009 to CP (CPM)** and **2 018 to VA (VAM)**; 2 010 is the
-  EVCSN POI message. The table now follows the specification, with 2005 (SAEM),
-  2011 (TPG), 2013 (RTCMEM) and 2019 (IMZM) added. Because the port selects the
-  decoder, the wrong entry silently mis-decoded VAM traffic.
-- **The end-to-end test was not portable.** `tests/validator/test_e2e.py` pointed
-  at a fixture inside a sibling project and returned early when it was missing, so
-  on any other machine the test passed as a no-op. It now uses a committed
-  capture (`tests/fixtures/sample_dlt127.pcap`), generated and explained by
-  `scripts/make_sample_capture.py`, and asserts the full framing chain
-  (radiotap → dot11 → llc_snap → geonet → btp) was reached.
 
 ### Documented
-- **Non-conformant captures are reported, not tolerated.** `R01` flags all 4333
-  records of `PCAPSender/tests/fixtures/All_UE_01.pcapng` because the 802.11
-  payload carries no LLC/SNAP header. Verified as not a false positive:
-  PCAPSender's own dissector classifies 0 of those records as ITS-G5 for the same
-  reason. Recorded as a known limitation in the README.
 
 ### Planned (Milestone 3 - v1.5.0: European Day-2 Suite)
-- **CPM (Collective Perception Message, ETSI TS 103 324):** perceived object container
-  dissection over the ASN.1 modules already vendored by the conformance core.
-  Implemented as a real decoder, never a stub.
-- **VAM (Vulnerable Road User Awareness, ETSI TS 103 300-3):** VRU cluster profiles.
 - **ETSI TS 103 097 PKI SecuredData:** certificate-chain verification for the frames rule
   R01 currently reports as `secured` but does not unwrap.
 
 ---
 
-## [1.4.0] - 2026-10-04
+## [1.4.0] - 2026-10-05
 
 ### Added
 - **ASN.1 / UPER Conformance Core (`cits_validator/asn1/`):** real PDU decoding, replacing
@@ -67,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rule `R06_ASN1_CONFORMANCE`:** decodes the ASN.1 payload of a capture and reports real
   encoding faults (truncated PDU, unresolvable message, missing decoder) instead of matching
   source code with regular expressions.
+- **CPM and VAM decoding (ETSI TS 103 324 / TS 103 300-3).** The two Release 2 day-2 services
+  are decodable from raw UPER bytes, taking the corpus from 17 to 24 modules. Both are Release
+  2 only and have no Release 1 baseline, so `decode_pdu(..., release="r1")` refuses them rather
+  than compiling against the wrong CDD module. CPM's ASN.1 top-level type is
+  `CollectivePerceptionMessage`, not `CPM`; the mapping is explicit. Verified against byte-exact
+  vectors produced by an independent encoder for both types.
 - **PDU pipeline in `cits-export`:** `--pdu <hex> --msg-type <type>` decodes a raw PDU and
   feeds the MAPEM topology straight into the KML / GeoJSON exporters.
 - **MCP tool `cits_decode_pdu`:** decodes a raw PDU hex string into structured fields.
@@ -96,6 +75,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `if_tsresol` is honoured, and per-record link types are respected.
 - **Configurable stopline chord bound:** `cits-lint --max-chord` (default 25 m).
 - `cits-lint` exits 2 with a message on an unreadable target instead of crashing.
+- **VAM was mapped to the wrong BTP port.** The port table carried `2010: VAM`, inherited from
+  a neighbouring implementation. ETSI TS 103 248 (Table 1 of v2.4.1) assigns **2 009 to CP
+  (CPM)** and **2 018 to VA (VAM)**; 2 010 is the EVCSN POI message. The table now follows the
+  specification, with 2005 (SAEM), 2011 (TPG), 2013 (RTCMEM) and 2019 (IMZM) added. Because the
+  port selects the decoder, the wrong entry silently mis-decoded VAM traffic.
+- **The end-to-end test was not portable.** `tests/validator/test_e2e.py` pointed at a fixture
+  inside a sibling project and returned early when it was missing, so on any other machine the
+  test passed as a no-op. It now uses a committed capture
+  (`tests/fixtures/sample_dlt127.pcap`), generated and explained by
+  `scripts/make_sample_capture.py`, and asserts the full framing chain
+  (radiotap → dot11 → llc_snap → geonet → btp) was reached.
+
+### Documented
+- **Non-conformant captures are reported, not tolerated.** `R01` flags all 4333 records of
+  `PCAPSender/tests/fixtures/All_UE_01.pcapng` because the 802.11 payload carries no LLC/SNAP
+  header. Verified as not a false positive: PCAPSender's own dissector classifies 0 of those
+  records as ITS-G5 for the same reason. Recorded as a known limitation in the README.
 
 ### Added (tooling)
 - `cits-lint --topology <file.json>` audits MAPEM topology documents with R03; topology JSON was
