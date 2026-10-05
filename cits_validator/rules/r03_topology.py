@@ -14,22 +14,34 @@ class MapemTopologyRule(BaseRule):
     name = "MAPEM Topography & Stopline Geometry Invariant"
     description = (
         "Validates multi-fragment MAPEM lane accumulation without overwrite loss, "
-        "and checks that stopline connections do not exceed the 25m intersection chord bound."
+        "and checks that stopline connections do not exceed the configurable "
+        "intersection chord bound."
     )
 
-    MAX_STOPLINE_CHORD_METERS: float = 25.0
+    # ISO TS 19091 stopline chords at a signalised intersection are short. The
+    # bound is a heuristic guard against connecting lane tails (Node N) instead
+    # of stoplines (Node 0); 25 m matches the C-Roads / ETSI guidance and can be
+    # raised for large junctions (see README: intersection geometry).
+    DEFAULT_MAX_STOPLINE_CHORD_METERS: float = 25.0
     EARTH_RADIUS_METERS: float = 6371000.0
+
+    def __init__(self, max_stopline_chord_meters: float | None = None) -> None:
+        self.max_stopline_chord_meters = (
+            max_stopline_chord_meters
+            if max_stopline_chord_meters is not None
+            else self.DEFAULT_MAX_STOPLINE_CHORD_METERS
+        )
 
     @classmethod
     def haversine_distance(cls, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        # cits-lint: allow — great-circle distance, not synthetic coordinate generation
         phi1 = math.radians(lat1)
         phi2 = math.radians(lat2)
         delta_phi = math.radians(lat2 - lat1)
         delta_lambda = math.radians(lon2 - lon1)
 
-        a = (
-            math.sin(delta_phi / 2.0) ** 2
-            + math.cos(phi1) * math.cos(phi2) * (math.sin(delta_lambda / 2.0) ** 2)
+        a = math.sin(delta_phi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * (
+            math.sin(delta_lambda / 2.0) ** 2
         )
         c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
         return cls.EARTH_RADIUS_METERS * c
@@ -46,7 +58,7 @@ class MapemTopologyRule(BaseRule):
             return violations
 
         dist = self.haversine_distance(lat1, lon1, lat2, lon2)
-        if dist > self.MAX_STOPLINE_CHORD_METERS:
+        if dist > self.max_stopline_chord_meters:
             from_lane = connection.get("fromLane", "?")
             to_lane = connection.get("toLane", "?")
             violations.append(
@@ -54,14 +66,16 @@ class MapemTopologyRule(BaseRule):
                     rule_id=self.rule_id,
                     severity=Severity.ERROR,
                     message=(
-                        f"Overlong chord detected ({dist:.1f}m > {self.MAX_STOPLINE_CHORD_METERS}m) "
-                        f"connecting lane {from_lane} to lane {to_lane}"
+                        f"Overlong chord detected ({dist:.1f}m > "
+                        f"{self.max_stopline_chord_meters}m) connecting lane "
+                        f"{from_lane} to lane {to_lane}"
                     ),
                     offending_sample=f"dist={dist:.1f}m, from=({lat1},{lon1}), to=({lat2},{lon2})",
                     remediation_hint=(
-                        "In ISO TS 19091, Node 0 is the stopline reference node near the intersection center. "
-                        "Connecting lane tails (Node N) produces 5-fold overlong diagonal chords that cut "
-                        "across oncoming traffic. Always connect from Node 0."
+                        "In ISO TS 19091, Node 0 is the stopline reference node near the "
+                        "intersection center. Connecting lane tails (Node N) produces 5-fold "
+                        "overlong diagonal chords that cut across oncoming traffic. Always "
+                        "connect from Node 0."
                     ),
                 )
             )
@@ -106,8 +120,8 @@ class MapemTopologyRule(BaseRule):
                             rule_id=self.rule_id,
                             severity=Severity.ERROR,
                             message=(
-                                f"Conflicting overwrite for laneId {lane_id} in intersection {key} "
-                                f"across layerId {layer_id}"
+                                f"Conflicting overwrite for laneId {lane_id} in intersection "
+                                f"{key} across layerId {layer_id}"
                             ),
                             remediation_hint=(
                                 "Multi-fragment MAPEMs must be merged additively. "

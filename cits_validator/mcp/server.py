@@ -4,10 +4,13 @@ import json
 import sys
 from typing import Any
 
+from cits_validator import __version__
 from cits_validator.mcp.tools import (
     cits_audit_code,
     cits_check_mapem,
     cits_compute_glosa,
+    cits_decode_mapem_to_geojson,
+    cits_decode_pdu,
     cits_export_kml,
     cits_inspect_hex,
     cits_parse_lisa,
@@ -19,7 +22,7 @@ class McpServer:
     """Lightweight pure-Python STDIO JSON-RPC 2.0 MCP server."""
 
     SERVER_NAME = "cits-mcp"
-    SERVER_VERSION = "1.2.0"
+    SERVER_VERSION = __version__
 
     TOOL_DEFINITIONS = [
         {
@@ -36,6 +39,11 @@ class McpServer:
                         "type": "string",
                         "description": "Language name (python, js, ts, rust, cpp, java)",
                         "default": "python",
+                    },
+                    "rules": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional subset of rule IDs to run (e.g. ['R02'])",
                     },
                 },
                 "required": ["code"],
@@ -64,7 +72,7 @@ class McpServer:
             "name": "cits_check_mapem",
             "description": (
                 "Validates MAPEM topology geometries, verifies Node-0 stopline connections, "
-                "and flags diagonal overlong chords (>25m)."
+                "and flags diagonal overlong chords (default >25m)."
             ),
             "inputSchema": {
                 "type": "object",
@@ -73,17 +81,24 @@ class McpServer:
                         "type": "object",
                         "description": "JSON dict containing 'connections' or 'fragments'",
                     },
+                    "max_chord_meters": {
+                        "type": "number",
+                        "description": "Optional stopline chord bound in metres (default 25)",
+                    },
                 },
                 "required": ["lanes_geojson"],
             },
         },
         {
             "name": "cits_validate_pcap",
-            "description": "Validates a PCAP/PCAPNG capture file against C-ITS link-layer invariants.",
+            "description": "Validates a classic PCAP or PCAPNG capture file against C-ITS link-layer invariants.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "file_path": {"type": "string", "description": "Absolute path to PCAP file"},
+                    "file_path": {
+                        "type": "string",
+                        "description": "Absolute path to PCAP/PCAPNG file",
+                    },
                 },
                 "required": ["file_path"],
             },
@@ -94,7 +109,10 @@ class McpServer:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "xml_content": {"type": "string", "description": "XML text of the LISA supply file"},
+                    "xml_content": {
+                        "type": "string",
+                        "description": "XML text of the LISA supply file",
+                    },
                 },
                 "required": ["xml_content"],
             },
@@ -105,14 +123,79 @@ class McpServer:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "distance_m": {"type": "number", "description": "Remaining distance to stop line in meters"},
-                    "speed_kmh": {"type": "number", "description": "Current vehicle approach speed in km/h"},
-                    "phase_state": {"type": "string", "description": "Signal phase state ('GREEN', 'RED', 'YELLOW')"},
-                    "time_to_phase_end_s": {"type": "number", "description": "Remaining seconds of current phase"},
-                    "next_green_duration_s": {"type": "number", "description": "Optional duration in seconds of next green phase", "default": 0.0},
-                    "speed_limit_kmh": {"type": "number", "description": "Legal street speed limit in km/h", "default": 50.0},
+                    "distance_m": {
+                        "type": "number",
+                        "description": "Remaining distance to stop line in meters",
+                    },
+                    "speed_kmh": {
+                        "type": "number",
+                        "description": "Current vehicle approach speed in km/h",
+                    },
+                    "phase_state": {
+                        "type": "string",
+                        "description": "Signal phase state ('GREEN', 'RED', 'YELLOW')",
+                    },
+                    "time_to_phase_end_s": {
+                        "type": "number",
+                        "description": "Remaining seconds of current phase",
+                    },
+                    "next_green_duration_s": {
+                        "type": "number",
+                        "description": "Optional duration in seconds of next green phase",
+                        "default": 0.0,
+                    },
+                    "speed_limit_kmh": {
+                        "type": "number",
+                        "description": "Legal street speed limit in km/h",
+                        "default": 50.0,
+                    },
                 },
                 "required": ["distance_m", "speed_kmh", "phase_state", "time_to_phase_end_s"],
+            },
+        },
+        {
+            "name": "cits_decode_pdu",
+            "description": (
+                "Decodes a raw C-ITS ASN.1 UPER PDU (CAM, DENM, MAPEM, SPATEM, SREM, SSEM) "
+                "against the vendored ETSI/ISO modules and returns the structured fields plus "
+                "the standards it was validated against. Requires the optional [asn1] extra."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "hex_payload": {"type": "string", "description": "Raw PDU bytes in hex"},
+                    "msg_type": {
+                        "type": "string",
+                        "description": "One of CAM, DENM, MAPEM, SPATEM, SREM, SSEM",
+                        "enum": ["CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM"],
+                    },
+                    "release": {
+                        "type": "string",
+                        "description": "ASN.1 release baseline (r1 = EN 302 637-x/TS 103 301 v1.3.1, r2 = TS 103 900/831/v2.2.1)",
+                        "enum": ["r1", "r2"],
+                        "default": "r1",
+                    },
+                },
+                "required": ["hex_payload", "msg_type"],
+            },
+        },
+        {
+            "name": "cits_decode_mapem_to_geojson",
+            "description": (
+                "Decodes a MAPEM PDU and returns its lane geometry as an RFC 7946 GeoJSON "
+                "FeatureCollection, ready for QGIS / MapLibre. Requires the optional [asn1] extra."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "hex_payload": {"type": "string", "description": "Raw MAPEM PDU bytes in hex"},
+                    "release": {"type": "string", "enum": ["r1", "r2"], "default": "r1"},
+                    "lisa_xml": {
+                        "type": "string",
+                        "description": "Optional LISA supply XML for signal group enrichment",
+                    },
+                },
+                "required": ["hex_payload"],
             },
         },
         {
@@ -121,9 +204,19 @@ class McpServer:
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "lanes_json": {"type": ["object", "array"], "description": "MAPEM topology dictionary or list of lanes"},
-                    "lisa_xml": {"type": "string", "description": "Optional LISA supply XML content for signal group enrichment"},
-                    "intersection_name": {"type": "string", "description": "Document title", "default": "C-ITS Intersection"},
+                    "lanes_json": {
+                        "type": ["object", "array"],
+                        "description": "MAPEM topology dictionary or list of lanes",
+                    },
+                    "lisa_xml": {
+                        "type": "string",
+                        "description": "Optional LISA supply XML content for signal group enrichment",
+                    },
+                    "intersection_name": {
+                        "type": "string",
+                        "description": "Document title",
+                        "default": "C-ITS Intersection",
+                    },
                 },
                 "required": ["lanes_json"],
             },
@@ -133,12 +226,16 @@ class McpServer:
     def __init__(self) -> None:
         self.tool_handlers = {
             "cits_audit_code": lambda args: cits_audit_code(
-                args["code"], args.get("language", "python")
+                args["code"],
+                args.get("language", "python"),
+                args.get("rules"),
             ),
             "cits_inspect_hex": lambda args: cits_inspect_hex(
                 args["hex_payload"], args.get("dlt", 127)
             ),
-            "cits_check_mapem": lambda args: cits_check_mapem(args["lanes_geojson"]),
+            "cits_check_mapem": lambda args: cits_check_mapem(
+                args["lanes_geojson"], args.get("max_chord_meters")
+            ),
             "cits_validate_pcap": lambda args: cits_validate_pcap(args["file_path"]),
             "cits_parse_lisa": lambda args: cits_parse_lisa(args["xml_content"]),
             "cits_compute_glosa": lambda args: cits_compute_glosa(
@@ -153,6 +250,16 @@ class McpServer:
                 lanes_json=args["lanes_json"],
                 lisa_xml=args.get("lisa_xml"),
                 intersection_name=args.get("intersection_name", "C-ITS Intersection"),
+            ),
+            "cits_decode_pdu": lambda args: cits_decode_pdu(
+                args["hex_payload"],
+                args["msg_type"],
+                args.get("release", "r1"),
+            ),
+            "cits_decode_mapem_to_geojson": lambda args: cits_decode_mapem_to_geojson(
+                args["hex_payload"],
+                args.get("release", "r1"),
+                args.get("lisa_xml"),
             ),
         }
 
@@ -216,7 +323,6 @@ class McpServer:
                 }
 
         elif method == "notifications/initialized":
-            # Client notification acknowledgment
             return {}
 
         return {

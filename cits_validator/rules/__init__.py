@@ -5,9 +5,11 @@ from cits_validator.rules.r02_anti_fake import AntiHallucinationRule
 from cits_validator.rules.r03_topology import MapemTopologyRule
 from cits_validator.rules.r04_priority import PrioritySessionRule
 from cits_validator.rules.r05_hardware import HardwareStreamRule
+from cits_validator.rules.r06_asn1_conformance import Asn1ConformanceRule
 
 __all__ = [
     "AntiHallucinationRule",
+    "Asn1ConformanceRule",
     "HardwareStreamRule",
     "LinkLayerRule",
     "MapemTopologyRule",

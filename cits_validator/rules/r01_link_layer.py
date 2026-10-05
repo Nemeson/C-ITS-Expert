@@ -3,6 +3,12 @@ from __future__ import annotations
 import struct
 from typing import Any
 
+from cits_validator.core.geonet import (
+    DLT_EN10MB,
+    DLT_IEEE802_11,
+    DLT_IEEE802_11_RADIO,
+    locate_geonetworking_frame,
+)
 from cits_validator.core.models import Severity, Violation
 from cits_validator.core.registry import BaseRule
 from cits_validator.core.stream import PacketRecord
@@ -28,6 +34,12 @@ class LinkLayerRule(BaseRule):
         2008: "SSEM",
     }
 
+    @staticmethod
+    def _cover(state: dict[str, Any], category: str, count: int = 1) -> None:
+        """Records that a framing layer was actually reached in this capture."""
+        coverage = state.setdefault("_coverage", {})
+        coverage[category] = coverage.get(category, 0) + count
+
     def audit_packet(
         self, record: PacketRecord, dlt: int, state: dict[str, Any]
     ) -> list[Violation]:
@@ -36,7 +48,7 @@ class LinkLayerRule(BaseRule):
         offset = 0
 
         # 1. Radiotap Unwrapping
-        if dlt == 127:  # DLT_IEEE802_11_RADIO
+        if dlt == DLT_IEEE802_11_RADIO:
             if len(data) < 8:
                 violations.append(
                     Violation(
@@ -68,10 +80,11 @@ class LinkLayerRule(BaseRule):
                 )
                 return violations
 
+            self._cover(state, "radiotap")
             offset = it_len
 
         # 2. 802.11 MAC Frame Unwrapping
-        if dlt in (127, 105):  # 802.11 Radio or raw 802.11
+        if dlt in (DLT_IEEE802_11_RADIO, DLT_IEEE802_11):
             if len(data) < offset + 24:
                 violations.append(
                     Violation(
@@ -91,11 +104,8 @@ class LinkLayerRule(BaseRule):
 
             # Type 2 = Data
             if fc_type == 2:
-                # Subtype 8 = QoS Data -> 26 bytes header (24 bytes standard + 2 bytes QoS Control)
-                if fc_subtype == 8:
-                    mac_len = 26
-                else:
-                    mac_len = 24
+                # Subtype 8 = QoS Data -> 26 bytes header (24 standard + 2 QoS Control)
+                mac_len = 26 if fc_subtype == 8 else 24
             else:
                 mac_len = 24
 
@@ -111,6 +121,7 @@ class LinkLayerRule(BaseRule):
                 )
                 return violations
 
+            self._cover(state, "dot11")
             offset += mac_len
 
             # 3. LLC/SNAP Validation for 802.11
@@ -127,7 +138,7 @@ class LinkLayerRule(BaseRule):
                 return violations
 
             llc_snap = data[offset : offset + 8]
-            expected_llc = b"\xAA\xAA\x03\x00\x00\x00\x89\x47"
+            expected_llc = b"\xaa\xaa\x03\x00\x00\x00\x89\x47"
             if llc_snap != expected_llc:
                 violations.append(
                     Violation(
@@ -137,14 +148,18 @@ class LinkLayerRule(BaseRule):
                         packet_index=record.index,
                         byte_offset=offset,
                         offending_sample=llc_snap.hex(),
-                        remediation_hint="Expected ETSI ITS EtherType 0x8947 with SNAP header 'AA AA 03 00 00 00 89 47'.",
+                        remediation_hint=(
+                            "Expected ETSI ITS EtherType 0x8947 with SNAP header "
+                            "'AA AA 03 00 00 00 89 47'."
+                        ),
                     )
                 )
                 return violations
 
+            self._cover(state, "llc_snap")
             offset += 8
 
-        elif dlt == 1:  # DLT_EN10MB (Ethernet II)
+        elif dlt == DLT_EN10MB:
             if len(data) < 14:
                 violations.append(
                     Violation(
@@ -159,10 +174,13 @@ class LinkLayerRule(BaseRule):
 
             ethertype = struct.unpack(">H", data[12:14])[0]
             if ethertype == 0x8947:
+                self._cover(state, "ethernet")
                 offset = 14
             elif ethertype <= 1500:
                 # 802.3 length + LLC/SNAP
-                if len(data) >= 22 and data[14:22] == b"\xAA\xAA\x03\x00\x00\x00\x89\x47":
+                if len(data) >= 22 and data[14:22] == b"\xaa\xaa\x03\x00\x00\x00\x89\x47":
+                    self._cover(state, "ethernet")
+                    self._cover(state, "llc_snap")
                     offset = 22
                 else:
                     violations.append(
@@ -188,12 +206,20 @@ class LinkLayerRule(BaseRule):
                 )
                 return violations
 
-        # 4. Optional BTP Port sanity check if payload matches
-        if len(data) >= offset + 2:
-            btp_dst = struct.unpack(">H", data[offset : offset + 2])[0]
-            if btp_dst in self.KNOWN_BTP_PORTS:
-                state.setdefault("btp_ports", {})[btp_dst] = (
-                    state.setdefault("btp_ports", {}).get(btp_dst, 0) + 1
-                )
+        # 4. GeoNetworking + BTP. The link layer has been unwrapped at this point;
+        #    the BTP destination port sits after the GeoNetworking Basic, Common
+        #    and extended headers (EN 302 636-4-1 / -5-1), not immediately after
+        #    LLC/SNAP. A secured frame hides it inside the 1609.2 envelope, so no
+        #    port is reported rather than a fabricated one.
+        frame = locate_geonetworking_frame(data, dlt)
+        if frame is not None:
+            self._cover(state, "geonet")
+            if frame.was_secured:
+                self._cover(state, "secured")
+                state["secured_frames"] = state.get("secured_frames", 0) + 1
+            elif frame.btp_port is not None:
+                self._cover(state, "btp")
+                ports = state.setdefault("btp_ports", {})
+                ports[frame.btp_port] = ports.get(frame.btp_port, 0) + 1
 
         return violations
