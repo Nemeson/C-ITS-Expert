@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cits-expert"
-version = "1.2.0"
+version = "1.4.0"
 description = "Universal C-ITS & V2X Knowledge, Dissection, and Engineering Skill Suite for AI Agents"
 readme = "README.md"
 authors = [{ name = "Kevin Seipel", email = "vertrieb@seipel.uk" }]
@@ -17,14 +17,24 @@ dependencies = [
 [tool.setuptools.packages.find]
 include = ["cits_validator*"]
 
+[tool.setuptools.package-data]
+cits_validator = ["asn1/standards/**/*.asn", "asn1/standards/*.json"]
+
 [project.scripts]
 cits-lint = "cits_validator.cli.main:main"
 cits-mcp = "cits_validator.mcp.server:main"
 cits-export = "cits_validator.cli.export:main"
 
 [project.optional-dependencies]
+# ASN.1/UPER conformance core (rule R06). Optional so the link-layer,
+# anti-hallucination and topology rules stay dependency-free and stream with a
+# small footprint; only PDU decoding needs a third-party ASN.1 compiler.
+asn1 = [
+    "asn1tools>=0.167",
+]
 dev = [
     "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
     "ruff>=0.5.0",
     "mypy>=1.10.0",
 ]
@@ -41,3 +51,30 @@ ignore = ["E501"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+filterwarnings = [
+    # asn1tools parses its grammar with an older pyparsing API; the warnings are
+    # noise from a dependency, not a signal about this code.
+    "ignore::DeprecationWarning:asn1tools.*",
+    "ignore::DeprecationWarning:pyparsing.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["cits_validator"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = false
+exclude_also = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_redundant_casts = true
+warn_unused_ignores = false
+warn_return_any = false
+ignore_missing_imports = true

@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -21,15 +21,53 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      # The tools are installed (not merely imported from the checkout) so their
+      # console entry points — cits-lint, cits-mcp, cits-export — exist exactly as
+      # a user gets them, and the tests can exercise the real commands.
+      - name: Install package and test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest pyyaml
+          pip install -e ".[dev]" pyyaml
 
       - name: Lint with ruff
-        run: |
-          ruff check .
+        run: ruff check .
 
-      - name: Run test suite
+      - name: Type-check with mypy
+        run: mypy cits_validator
+
+      - name: Run test suite with coverage gate
+        run: pytest -q --cov=cits_validator --cov-report=term --cov-fail-under=85
+
+      - name: Console entry points are installed
         run: |
-          pytest -v
+          cits-lint --version
+          cits-lint . --format json > /dev/null
+
+      - name: Self-audit must be clean (anti-hallucination rule R02)
+        run: |
+          cits-lint cits_validator/ --rules R02 --format json > r02.json
+          python scripts/check_r02_self_audit.py r02.json
+
+      - name: Vendored skill copies are in sync
+        run: |
+          if ! python sync_skill.py --check --quiet; then
+            echo "::error::A vendored copy of the cits-expert skill has drifted from the repository."
+            echo "Run 'python sync_skill.py --install-global' and commit the result."
+            exit 1
+          fi
+
+  standards:
+    # The ASN.1 conformance core compiles real ETSI/ISO modules. It is a separate
+    # job because the standards corpus is vendored, not committed here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install with the ASN.1 extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[asn1,dev]"
+      - name: ASN.1 conformance tests
+        run: pytest tests/asn1 -q

@@ -30,6 +30,33 @@ ASN.1 UPER packs information to the exact bit, without padding to byte boundarie
 - Enums are encoded using the minimum number of bits needed to represent the value range (e.g., 4 choices = 2 bits, 5 choices = 3 bits).
 - Unaligned bit packing means an enum value of 3 bits is immediately concatenated with the next boolean or integer. Never use byte-slicing on raw payloads; always use a dedicated bitstream reader.
 
+### 2.3 A correct implementation does not hand-roll this
+The `cits_validator` ASN.1 core (`pip install -e ".[asn1]"`) compiles the real
+ETSI/ISO modules with `asn1tools` and decodes through them, so the extension bit
+is evaluated by the generated codec rather than by hand-written bit arithmetic.
+It runs as rule `R06`:
+
+```bash
+cits-lint --pdu <hex> --msg-type MAPEM --release r1
+cits-lint capture.pcap --asn1 --release r2
+```
+
+Two limits are stated instead of worked around:
+
+- **Release 1 vs Release 2 have separate decoders.** The CDD module differs
+  (`ITS-Container` vs `ETSI-ITS-CDD`), so `--release` selects the baseline. They
+  also differ in field names: Release 1 uses `messageID`/`stationID`, Release 2
+  renamed them to `messageId`/`stationId`. Reading one spelling blindly reads
+  nothing in the other release.
+- **IEEE 1609.2 secured frames are not decoded.** Their Common Header and BTP sit
+  inside the security envelope, so a plaintext decode would be a fabrication.
+  `R01` reports such frames as `secured` and `R06` counts them as
+  `secured_undecodable`.
+
+A PDU that fails to decode is reported as an error. A PDU that decodes but
+carries no usable geometry yields an empty result with an explicit
+`NO DATA IN CAPTURE` status — never a synthesised shape.
+
 ---
 
 ## 3. Standard Field Scaling Factors

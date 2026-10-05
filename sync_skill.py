@@ -26,7 +26,13 @@ class SkillSynchronizer:
         """Returns the list of canonical agent skill locations."""
         return [
             # Antigravity new plugin
-            self.home_dir / ".gemini" / "config" / "plugins" / "cits-expert" / "skills" / "cits-expert",
+            self.home_dir
+            / ".gemini"
+            / "config"
+            / "plugins"
+            / "cits-expert"
+            / "skills"
+            / "cits-expert",
             # Antigravity existing cits-asn1 drop-in update
             self.home_dir / ".gemini" / "config" / "plugins" / "cits-asn1" / "skills" / "cits-asn1",
             # Universal Agent / Codex / OpenCode directory
@@ -67,18 +73,90 @@ class SkillSynchronizer:
 
         print(f"[OK] Synced {self.source_skill_dir.name} -> {target_dir}")
 
+    def check_targets(self, quiet: bool = False) -> int:
+        """Compares every installed target against the repo tree.
+
+        Returns the number of drifted targets. A vendored copy that lags the
+        repository silently feeds older standards text to another project's agent,
+        so drift is treated as a failure rather than a warning.
+        """
+        if not self.source_skill_dir.exists():
+            raise FileNotFoundError(f"Source skill directory not found at {self.source_skill_dir}")
+
+        drifted = 0
+        for target in self.get_global_targets():
+            if not target.exists():
+                if not quiet:
+                    print(f"[ABSENT] {target} (not installed)")
+                continue
+
+            differences: list[str] = []
+            source_files = sorted(
+                p
+                for p in self.source_skill_dir.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts
+            )
+            for src in source_files:
+                rel = src.relative_to(self.source_skill_dir)
+                dst = target / rel
+                if not dst.exists():
+                    differences.append(f"missing: {rel}")
+                elif src.read_bytes() != dst.read_bytes():
+                    differences.append(f"differs: {rel}")
+
+            installed = {
+                p.relative_to(target)
+                for p in target.rglob("*")
+                if p.is_file() and "__pycache__" not in p.parts
+            }
+            expected = {p.relative_to(self.source_skill_dir) for p in source_files}
+            for extra in sorted(installed - expected):
+                differences.append(f"stale: {extra}")
+
+            if differences:
+                drifted += 1
+                print(f"[DRIFT] {target}")
+                for diff in differences:
+                    print(f"    {diff}")
+            elif not quiet:
+                print(f"[OK] {target}")
+
+        return drifted
+
     def sync_all_global(self, dry_run: bool = False) -> None:
         for target in self.get_global_targets():
             self.sync_to_directory(target, dry_run=dry_run)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Synchronize C-ITS Expert skill across agent runtimes.")
-    parser.add_argument("--install-global", action="store_true", help="Install into all global agent locations.")
-    parser.add_argument("--install-project", type=Path, help="Install into target project (.agents/skills/cits-expert).")
-    parser.add_argument("--dry-run", action="store_true", help="Print actions without modifying files.")
+    parser = argparse.ArgumentParser(
+        description="Synchronize C-ITS Expert skill across agent runtimes."
+    )
+    parser.add_argument(
+        "--install-global", action="store_true", help="Install into all global agent locations."
+    )
+    parser.add_argument(
+        "--install-project",
+        type=Path,
+        help="Install into target project (.agents/skills/cits-expert).",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify installed copies match the repo; exit 1 on drift.",
+    )
+    parser.add_argument("--quiet", action="store_true", help="Only print drift or errors.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print actions without modifying files."
+    )
 
     args = parser.parse_args()
+
+    if args.check:
+        syncer = SkillSynchronizer()
+        drifted = syncer.check_targets(quiet=args.quiet)
+        return 1 if drifted else 0
+
     syncer = SkillSynchronizer()
 
     if not args.install_global and not args.install_project:
