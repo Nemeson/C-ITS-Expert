@@ -216,6 +216,18 @@ def cits_decode_mapem_to_geojson(
     return collection
 
 
+def cits_selftest(profile: str = "host") -> dict[str, Any]:
+    """Liveness/health probe for the edge daemon.
+
+    Returns the active capability profile and the running version so a
+    supervisor (systemd, a bridge, an agent) can confirm the server is up
+    and which surface it is exposing.
+    """
+    from cits_validator import __version__
+
+    return {"ok": True, "profile": profile, "version": __version__}
+
+
 __all__ = [
     "NO_DATA_IN_CAPTURE",
     "cits_audit_code",
@@ -226,5 +238,6 @@ __all__ = [
     "cits_export_kml",
     "cits_inspect_hex",
     "cits_parse_lisa",
+    "cits_selftest",
     "cits_validate_pcap",
 ]

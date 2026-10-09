@@ -8,6 +8,7 @@ from typing import Any
 from cits_validator import __version__
 from cits_validator.mcp.config import Settings
 from cits_validator.mcp.profiles import get_profile
+from cits_validator.mcp.resources import RESOURCES, read_resource
 from cits_validator.mcp.security import (
     cap_output,
     ensure_path_allowed,
@@ -22,6 +23,7 @@ from cits_validator.mcp.tools import (
     cits_export_kml,
     cits_inspect_hex,
     cits_parse_lisa,
+    cits_selftest,
     cits_validate_pcap,
 )
 
@@ -232,6 +234,14 @@ class McpServer:
                 "required": ["lanes_json"],
             },
         },
+        {
+            "name": "cits_selftest",
+            "description": (
+                "Liveness/health probe. Returns the active capability profile and the "
+                "server version so a supervisor or agent can confirm the server is up."
+            ),
+            "inputSchema": {"type": "object", "properties": {}},
+        },
     ]
 
     def __init__(self, settings: Settings | None = None) -> None:
@@ -274,6 +284,7 @@ class McpServer:
                 args.get("release", "r1"),
                 args.get("lisa_xml"),
             ),
+            "cits_selftest": lambda args: cits_selftest(self.settings.profile),
         }
 
     def handle_request(self, req: dict[str, Any]) -> dict[str, Any]:
@@ -291,12 +302,12 @@ class McpServer:
                         "name": self.SERVER_NAME,
                         "version": self.SERVER_VERSION,
                     },
-                    "capabilities": {"tools": {}},
+                    "capabilities": {"tools": {}, "resources": {}},
                 },
             }
 
         elif method == "tools/list":
-            all_names = [t["name"] for t in self.TOOL_DEFINITIONS]
+            all_names: list[str] = [str(t["name"]) for t in self.TOOL_DEFINITIONS]
             allowed = set(self.profile.filter_tools(all_names))
             exposed = [
                 {**t, "annotations": {"readOnlyHint": t["name"] not in _WRITE_TOOLS}}
@@ -358,6 +369,29 @@ class McpServer:
                         "isError": True,
                     },
                 }
+
+        elif method == "resources/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"resources": RESOURCES},
+            }
+
+        elif method == "resources/read":
+            uri = params.get("uri", "")
+            try:
+                text = read_resource(uri)
+            except ValueError as e:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32002, "message": str(e)},
+                }
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"contents": [{"uri": uri, "mimeType": "application/json", "text": text}]},
+            }
 
         elif method == "notifications/initialized":
             return {}

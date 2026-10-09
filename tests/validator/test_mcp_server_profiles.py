@@ -81,8 +81,19 @@ def test_default_constructor_still_works():
     s = McpServer()
     resp = s.handle_request({"id": 1, "method": "tools/list"})
     names = {t["name"] for t in resp["result"]["tools"]}
-    # All 9 existing tools exposed.
-    assert len(names) == 9
+    # All 9 original tools stay exposed (later tasks may add more).
+    original_nine = {
+        "cits_audit_code",
+        "cits_inspect_hex",
+        "cits_check_mapem",
+        "cits_validate_pcap",
+        "cits_parse_lisa",
+        "cits_compute_glosa",
+        "cits_export_kml",
+        "cits_decode_pdu",
+        "cits_decode_mapem_to_geojson",
+    }
+    assert original_nine <= names
 
 
 def test_successful_call_has_no_iserror_key():
