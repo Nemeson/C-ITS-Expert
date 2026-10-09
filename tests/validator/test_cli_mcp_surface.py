@@ -186,7 +186,7 @@ def test_mcp_server_reports_tool_errors():
             "params": {"name": "cits_inspect_hex", "arguments": {"hex_payload": "zz"}},
         }
     )
-    assert resp["error"]["code"] == -32000
+    assert resp["result"]["isError"] is True
 
 
 def test_mcp_server_notification_returns_empty():

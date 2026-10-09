@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 from cits_validator import __version__
+from cits_validator.mcp.config import Settings
+from cits_validator.mcp.profiles import get_profile
+from cits_validator.mcp.security import (
+    cap_output,
+    ensure_path_allowed,
+    require_token_if_remote,
+)
 from cits_validator.mcp.tools import (
     cits_audit_code,
     cits_check_mapem,
@@ -16,6 +24,9 @@ from cits_validator.mcp.tools import (
     cits_parse_lisa,
     cits_validate_pcap,
 )
+
+# Tools that produce side-effects (file generation) rather than pure reads.
+_WRITE_TOOLS = frozenset({"cits_export_kml"})
 
 
 class McpServer:
@@ -223,7 +234,9 @@ class McpServer:
         },
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings or Settings.from_env()
+        self.profile = get_profile(self.settings.profile)
         self.tool_handlers = {
             "cits_audit_code": lambda args: cits_audit_code(
                 args["code"],
@@ -283,10 +296,17 @@ class McpServer:
             }
 
         elif method == "tools/list":
+            all_names = [t["name"] for t in self.TOOL_DEFINITIONS]
+            allowed = set(self.profile.filter_tools(all_names))
+            exposed = [
+                {**t, "annotations": {"readOnlyHint": t["name"] not in _WRITE_TOOLS}}
+                for t in self.TOOL_DEFINITIONS
+                if t["name"] in allowed
+            ]
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {"tools": self.TOOL_DEFINITIONS},
+                "result": {"tools": exposed},
             }
 
         elif method == "tools/call":
@@ -301,8 +321,22 @@ class McpServer:
                     "error": {"code": -32601, "message": f"Tool not found: {tool_name}"},
                 }
 
+            if self.settings.profile == "device" and "file_path" in tool_args:
+                try:
+                    ensure_path_allowed(Path(tool_args["file_path"]), self.settings.roots)
+                except PermissionError as e:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "content": [{"type": "text", "text": str(e)}],
+                            "isError": True,
+                        },
+                    }
+
             try:
                 res = handler(tool_args)
+                capped = cap_output(res, self.settings.max_output_bytes)
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
@@ -310,7 +344,7 @@ class McpServer:
                         "content": [
                             {
                                 "type": "text",
-                                "text": json.dumps(res, indent=2),
+                                "text": json.dumps(capped, indent=2),
                             }
                         ]
                     },
@@ -319,7 +353,10 @@ class McpServer:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "error": {"code": -32000, "message": str(e)},
+                    "result": {
+                        "content": [{"type": "text", "text": str(e)}],
+                        "isError": True,
+                    },
                 }
 
         elif method == "notifications/initialized":
@@ -333,6 +370,7 @@ class McpServer:
 
     def run_stdio(self) -> None:
         """Runs the STDIO JSON-RPC line loop."""
+        require_token_if_remote(self.settings.bind_host, self.settings.token)
         for line in sys.stdin:
             line = line.strip()
             if not line:
