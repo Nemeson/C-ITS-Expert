@@ -260,6 +260,37 @@ Exposed Agent Tools:
 * `cits_export_kml(lanes_json, lisa_xml, intersection_name)`: Generates pure-Python 3D OGC KML 2.2 documents with extruded lane ribbons and stopline markers.
 * `cits_decode_pdu(hex_payload, msg_type, release)`: Decodes a CAM/DENM/MAPEM/SPATEM/SREM/SSEM PDU against the vendored ETSI/ISO modules and returns the fields plus the standards used.
 * `cits_decode_mapem_to_geojson(hex_payload, release, lisa_xml)`: Decodes a MAPEM PDU straight to GeoJSON, reporting `lane_count` and `data_status` so an empty result is visible.
+* `cits_selftest()`: Liveness/health probe returning the active profile and version.
+
+Read-only resources: `cits://rules` (machine-readable rule catalog) and `cits://version`.
+
+#### Capability profiles
+
+The server exposes a filtered tool surface per role, selected with `CITS_MCP_PROFILE`:
+
+| Profile | Tools | Purpose |
+| :--- | :--- | :--- |
+| `host` (default) | all tools | Development host / coding agents. |
+| `device` | read-only tools only (`inspect_hex`, `validate_pcap`, `check_mapem`, `compute_glosa`, `parse_lisa`, `selftest`) | On-RSU / edge deployment. |
+| `ci` | `validate_pcap`, `audit_code`, `decode_pdu` | Pipeline gate. |
+
+#### Security & limits (environment)
+
+- `CITS_MCP_BIND_HOST` — bind address (default `127.0.0.1`). A non-loopback bind **requires** `CITS_MCP_TOKEN` or the server refuses to start.
+- `CITS_MCP_TOKEN` — shared token for remote binds.
+- `CITS_MCP_ROOTS` — `;`-separated path allowlist; file-reading tools refuse paths outside it.
+- `CITS_MCP_MAX_OUTPUT_BYTES` — output cap (default `262144`); oversized results are truncated at a record boundary and marked `truncated` with a `total`.
+
+#### Embedded deployment (`cits-edge`)
+
+For constrained Linux (musl/static, low RAM/Flash), build a device-profile zipapp with
+zero third-party dependencies and run it under systemd:
+
+```bash
+python scripts/build_edge_zipapp.py --output cits-edge.pyz
+python cits-edge.pyz selftest
+```
+A ready unit template is at [`packaging/cits-edge.service`](packaging/cits-edge.service).
 
 ---
 
@@ -309,7 +340,7 @@ ruff check .
 mypy cits_validator
 ```
 
-### Verified Test Matrix (225 Tests, 100% Green)
+### Verified Test Matrix (266 Tests, 100% Green)
 - `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
 - `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
 - `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.
@@ -318,7 +349,7 @@ mypy cits_validator
 - `tests/lisa/`: Tests LISA `LV.XML` supply compiler, signal group object mapping, and vehicle/pedestrian/cyclist classification heuristics.
 - `tests/cli/`: End-to-end CLI tests for `cits-lint` and `cits-export` (stdout, file output, LISA enrichment, `--pdu`).
 - `tests/asn1/`: ASN.1 conformance against byte-exact reference vectors from an independent encoder **and real field MAPEM captures** across both release baselines; the vendored-module provenance, the failure modes (truncated/garbage PDU never yields a partial decode) and the PDU → lane-geometry adapter.
-- `tests/validator/`: Conformance rules R01–R06 including their error branches, live STDIO MCP server JSON-RPC dispatch, PCAPNG block parsing, and subprocess E2E validations.
+- `tests/validator/`: Conformance rules R01–R06 including their error branches, live STDIO MCP server JSON-RPC dispatch, PCAPNG block parsing, profile filtering, security guards (`tests/validator/test_mcp_security.py`), resource reads, the `cits-edge` zipapp build/smoke test (`tests/validator/test_edge_zipapp.py`), and subprocess E2E validations.
 
 ### Standards corpus
 The ASN.1 modules the conformance core compiles are vendored under

@@ -10,8 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Capability profiles for the MCP server (`device`, `host`, `ci`).** The server now
+  filters `tools/list` and enforces rights per profile, selected via `CITS_MCP_PROFILE`
+  (default `host`). The `device` profile exposes only read-only tools and is the basis
+  for on-RSU/edge deployment.
+- **Configuration surface (`cits_validator/mcp/config.py`).** `Settings.from_env` reads
+  `CITS_MCP_PROFILE`, `CITS_MCP_BIND_HOST`, `CITS_MCP_TOKEN`, `CITS_MCP_ROOTS` and
+  `CITS_MCP_MAX_OUTPUT_BYTES`.
+- **Security guards (`cits_validator/mcp/security.py`).** A non-loopback bind without
+  `CITS_MCP_TOKEN` refuses to start; a `file_path` outside `CITS_MCP_ROOTS` is refused;
+  oversized results are truncated at a record boundary and marked `truncated` with a
+  `total`, never dropped silently.
+- **Corrected MCP tool-error semantics.** Tool failures now return `result.isError: true`
+  instead of a JSON-RPC `error`, so an agent can tell a tool fault from a protocol fault.
+  Protocol faults (unknown method, parse error) remain JSON-RPC errors.
+- **`cits_selftest` tool and `cits://rules` / `cits://version` resources.** Liveness probe
+  and read-only catalogs an agent can read instead of calling a tool.
+- **`cits-export --rules-json`.** Emits the rule catalog as machine-readable JSON (the
+  contract the Milestone 3 native codegen will consume).
+- **`cits-edge` zipapp (`scripts/build_edge_zipapp.py`).** A device-profile distribution
+  with zero third-party dependencies, plus a `packaging/cits-edge.service` systemd unit.
 
 ### Changed
+- **MCP server construction:** `McpServer(settings=...)` accepts a `Settings` object;
+  `McpServer()` with no arguments keeps working (backward compatible).
 
 ### Fixed
 
