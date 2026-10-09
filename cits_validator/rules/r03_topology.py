@@ -32,6 +32,9 @@ class MapemTopologyRule(BaseRule):
             else self.DEFAULT_MAX_STOPLINE_CHORD_METERS
         )
 
+    def metadata(self) -> dict[str, Any]:
+        return {"max_stopline_chord_meters": self.max_stopline_chord_meters}
+
     @classmethod
     def haversine_distance(cls, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         # cits-lint: allow — great-circle distance, not synthetic coordinate generation

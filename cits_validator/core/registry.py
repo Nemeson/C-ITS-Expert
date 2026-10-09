@@ -23,6 +23,10 @@ class BaseRule:
         """Audits a source code snippet."""
         return []
 
+    def metadata(self) -> dict[str, Any]:
+        """Machine-readable descriptors for codegen and tooling. Empty by default."""
+        return {}
+
 
 class RuleRegistry:
     """Registry managing active validation rules."""
