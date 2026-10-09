@@ -23,11 +23,12 @@ jobs:
 
       # The tools are installed (not merely imported from the checkout) so their
       # console entry points — cits-lint, cits-mcp, cits-export — exist exactly as
-      # a user gets them, and the tests can exercise the real commands.
+      # a user gets them, and the tests can exercise the real commands. The asn1 extra
+      # is required: without it the R06/ASN.1 tests skip and the coverage gate fails.
       - name: Install package and test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" pyyaml
+          pip install -e ".[asn1,dev]" pyyaml
 
       - name: Lint with ruff
         run: ruff check .
