@@ -73,3 +73,26 @@ def test_cap_output_small_payload_passes_through_byte_identical():
     capped = cap_output(payload, max_bytes=4096)
     assert capped is payload
     assert json.dumps(capped, sort_keys=True) == json.dumps(payload, sort_keys=True)
+
+
+# --- Review fix: path traversal defense and cap_output branch 4 ---
+
+
+def test_path_traversal_with_dotdot_refused(tmp_path):
+    """resolve() must collapse .. before relative_to() so traversal is blocked."""
+    root = tmp_path / "root"
+    root.mkdir()
+    sneaky = root / ".." / "out.pcap"
+    with pytest.raises(PermissionError):
+        ensure_path_allowed(sneaky, roots=(root,))
+
+
+def test_cap_output_over_cap_no_truncatable_returns_unchanged():
+    """Branch 4: over-cap payload with no truncatable list and no over-cap
+    string must be returned unchanged — never drop data."""
+    payload = {"a": "x" * 50, "b": "x" * 50, "c": "x" * 50}
+    # total encoded size (177) > max_bytes (100), but no single top-level
+    # string exceeds 100 bytes and there is no truncatable list.
+    capped = cap_output(payload, max_bytes=100)
+    assert capped is payload
+    assert "truncated" not in capped
