@@ -45,10 +45,17 @@ def cap_output(payload: dict[str, Any], max_bytes: int) -> dict[str, Any]:
     if candidates:
         key, items = max(candidates, key=lambda pair: len(pair[1]))
         total = len(items)
-        kept = list(items)
-        while kept and _encoded_size({**payload, key: kept}) > max_bytes:
-            kept = kept[:-1]
-        return {**payload, key: kept, "truncated": True, "total": total}
+        # Binary-search the largest prefix that fits, so a large list is capped in
+        # O(n log n) rather than re-serialising the whole payload per removed item.
+        lo, hi, best = 0, total, 0
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if _encoded_size({**payload, key: items[:mid]}) <= max_bytes:
+                best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return {**payload, key: items[:best], "truncated": True, "total": total}
 
     # 3. Truncate a top-level string value that alone exceeds max_bytes.
     for key, value in payload.items():
