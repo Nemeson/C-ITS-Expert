@@ -64,7 +64,7 @@ class McpServer:
     SERVER_NAME = "cits-mcp"
     SERVER_VERSION = __version__
 
-    TOOL_DEFINITIONS = [
+    TOOL_DEFINITIONS: list[dict[str, Any]] = [
         {
             "name": "cits_audit_code",
             "description": (
