@@ -186,7 +186,7 @@ def test_mcp_server_reports_decode_failure_as_error():
             },
         }
     )
-    assert response["error"]["code"] == -32000
+    assert response["result"]["isError"] is True
 
 
 # --------------------------------------------------------------------------- #

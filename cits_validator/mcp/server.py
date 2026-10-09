@@ -17,6 +17,46 @@ from cits_validator.mcp.tools import (
     cits_validate_pcap,
 )
 
+_JSON_TYPES: dict[str, tuple[type, ...]] = {
+    "string": (str,),
+    "number": (int, float),
+    "integer": (int,),
+    "object": (dict,),
+    "array": (list,),
+    "boolean": (bool,),
+}
+
+
+def validate_arguments(schema: dict[str, Any], args: Any) -> list[str]:
+    """Minimal JSON-Schema check (required, type, enum) so bad input yields a clear message."""
+    if not isinstance(args, dict):
+        return ["arguments must be a JSON object"]
+    problems = [
+        f"missing required argument: {k}" for k in schema.get("required", []) if k not in args
+    ]
+    for key, spec in schema.get("properties", {}).items():
+        if key not in args:
+            continue
+        value = args[key]
+        types = spec.get("type")
+        types = [types] if isinstance(types, str) else (types or [])
+        if types:
+            allowed = tuple(t for name in types for t in _JSON_TYPES.get(name, ()))
+            is_bool_for_number = isinstance(value, bool) and bool not in allowed
+            if is_bool_for_number or not isinstance(value, allowed):
+                problems.append(f"argument {key!r} must be of type {'/'.join(types)}")
+                continue
+        if "enum" in spec and value not in spec["enum"]:
+            problems.append(f"argument {key!r} must be one of {spec['enum']}")
+    return problems
+
+
+def _tool_result(text: str, is_error: bool = False) -> dict[str, Any]:
+    result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
+    if is_error:
+        result["isError"] = True
+    return result
+
 
 class McpServer:
     """Lightweight pure-Python STDIO JSON-RPC 2.0 MCP server."""
@@ -24,7 +64,7 @@ class McpServer:
     SERVER_NAME = "cits-mcp"
     SERVER_VERSION = __version__
 
-    TOOL_DEFINITIONS = [
+    TOOL_DEFINITIONS: list[dict[str, Any]] = [
         {
             "name": "cits_audit_code",
             "description": (
@@ -156,7 +196,7 @@ class McpServer:
         {
             "name": "cits_decode_pdu",
             "description": (
-                "Decodes a raw C-ITS ASN.1 UPER PDU (CAM, DENM, MAPEM, SPATEM, SREM, SSEM) "
+                "Decodes a raw C-ITS ASN.1 UPER PDU (CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM, VAM) "
                 "against the vendored ETSI/ISO modules and returns the structured fields plus "
                 "the standards it was validated against. Requires the optional [asn1] extra."
             ),
@@ -166,8 +206,8 @@ class McpServer:
                     "hex_payload": {"type": "string", "description": "Raw PDU bytes in hex"},
                     "msg_type": {
                         "type": "string",
-                        "description": "One of CAM, DENM, MAPEM, SPATEM, SREM, SSEM",
-                        "enum": ["CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM"],
+                        "description": "One of CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM, VAM (CPM/VAM are Release 2 only)",
+                        "enum": ["CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM", "CPM", "VAM"],
                     },
                     "release": {
                         "type": "string",
@@ -223,7 +263,18 @@ class McpServer:
         },
     ]
 
+    # Every tool is a pure function of its input: no writes, no external effects.
+    TOOL_ANNOTATIONS = {
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+    SUPPORTED_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+
     def __init__(self) -> None:
+        for tool in self.TOOL_DEFINITIONS:
+            tool.setdefault("annotations", dict(self.TOOL_ANNOTATIONS))
         self.tool_handlers = {
             "cits_audit_code": lambda args: cits_audit_code(
                 args["code"],
@@ -263,6 +314,10 @@ class McpServer:
             ),
         }
 
+    @classmethod
+    def _negotiate(cls, requested: Any) -> str:
+        return requested if requested in cls.SUPPORTED_PROTOCOLS else cls.SUPPORTED_PROTOCOLS[-1]
+
     def handle_request(self, req: dict[str, Any]) -> dict[str, Any]:
         req_id = req.get("id")
         method = req.get("method")
@@ -273,7 +328,7 @@ class McpServer:
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "result": {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": self._negotiate(params.get("protocolVersion")),
                     "serverInfo": {
                         "name": self.SERVER_NAME,
                         "version": self.SERVER_VERSION,
@@ -301,29 +356,38 @@ class McpServer:
                     "error": {"code": -32601, "message": f"Tool not found: {tool_name}"},
                 }
 
+            schema = next(t["inputSchema"] for t in self.TOOL_DEFINITIONS if t["name"] == tool_name)
+            problems = validate_arguments(schema, tool_args)
+            if problems:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": _tool_result("Invalid arguments: " + "; ".join(problems), True),
+                }
+
+            # Execution errors are reported in-band (isError) so the model can read
+            # them and retry; JSON-RPC errors are reserved for protocol faults.
             try:
                 res = handler(tool_args)
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(res, indent=2),
-                            }
-                        ]
-                    },
+                    "result": _tool_result(json.dumps(res, indent=2)),
                 }
             except Exception as e:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "error": {"code": -32000, "message": str(e)},
+                    "result": _tool_result(f"{type(e).__name__}: {e}", True),
                 }
 
-        elif method == "notifications/initialized":
+        elif method == "ping":
+            return {"jsonrpc": "2.0", "id": req_id, "result": {}}
+
+        elif isinstance(method, str) and method.startswith("notifications/"):
             return {}
+        elif "id" not in req:
+            return {}  # unknown notification: never answer
 
         return {
             "jsonrpc": "2.0",

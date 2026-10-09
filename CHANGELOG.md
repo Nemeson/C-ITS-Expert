@@ -10,10 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **MCP:** `ping`, protocol-version negotiation (2025-06-18 / 2025-03-26 / 2024-11-05) and
+  read-only/idempotent tool annotations so clients can auto-approve the tools.
+- **MCP:** argument validation (required, type, enum) with readable error messages.
 
 ### Changed
+- **MCP:** tool execution errors are returned in-band as `isError: true` results instead of
+  JSON-RPC errors, so the model can read the message and retry.
 
 ### Fixed
+- **MCP:** unknown `notifications/*` messages are no longer answered with an error.
+- **MCP:** `cits_decode_pdu` advertises CPM and VAM, which the decoder already supported.
 
 ### Documented
 

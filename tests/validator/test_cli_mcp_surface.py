@@ -186,8 +186,57 @@ def test_mcp_server_reports_tool_errors():
             "params": {"name": "cits_inspect_hex", "arguments": {"hex_payload": "zz"}},
         }
     )
-    assert resp["error"]["code"] == -32000
+    assert resp["result"]["isError"] is True
+    assert "not valid hexadecimal" in resp["result"]["content"][0]["text"]
 
 
 def test_mcp_server_notification_returns_empty():
-    assert McpServer().handle_request({"method": "notifications/initialized"}) == {}
+    server = McpServer()
+    assert server.handle_request({"method": "notifications/initialized"}) == {}
+    assert server.handle_request({"method": "notifications/cancelled"}) == {}
+    assert server.handle_request({"method": "something/unknown"}) == {}
+
+
+def test_mcp_server_ping_and_protocol_negotiation():
+    server = McpServer()
+    assert server.handle_request({"id": 1, "method": "ping"})["result"] == {}
+    ok = server.handle_request(
+        {"id": 2, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}
+    )
+    assert ok["result"]["protocolVersion"] == "2025-06-18"
+    old = server.handle_request(
+        {"id": 3, "method": "initialize", "params": {"protocolVersion": "1999-01-01"}}
+    )
+    assert old["result"]["protocolVersion"] == "2024-11-05"
+
+
+def test_mcp_server_validates_arguments():
+    server = McpServer()
+
+    def call(name, args):
+        return server.handle_request(
+            {"id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}}
+        )["result"]
+
+    missing = call("cits_audit_code", {})
+    assert (
+        missing["isError"] is True
+        and "missing required argument: code" in missing["content"][0]["text"]
+    )
+    wrong = call(
+        "cits_compute_glosa",
+        {"distance_m": "far", "speed_kmh": 1, "phase_state": "RED", "time_to_phase_end_s": 1},
+    )
+    assert wrong["isError"] is True and "distance_m" in wrong["content"][0]["text"]
+    bad_enum = call("cits_decode_pdu", {"hex_payload": "00", "msg_type": "XYZ"})
+    assert bad_enum["isError"] is True
+
+
+def test_mcp_tools_are_annotated_read_only_and_list_cpm_vam():
+    tools = {
+        t["name"]: t
+        for t in McpServer().handle_request({"id": 1, "method": "tools/list"})["result"]["tools"]
+    }
+    assert all(t["annotations"]["readOnlyHint"] for t in tools.values())
+    enum = tools["cits_decode_pdu"]["inputSchema"]["properties"]["msg_type"]["enum"]
+    assert "CPM" in enum and "VAM" in enum
