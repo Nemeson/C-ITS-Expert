@@ -90,10 +90,10 @@ Zusätzlicher Fund durch Fuzzing: `cits_parse_lisa`/`lisa_xml` lasen Strings ohn
 - Tests: `__main__`, Versions-Fallback, Pfad-Präfix/Symlink, Export-CLI-Fehlerpfade.
 
 **Bewusst offen:**
-- IEEE-1609.2-gesicherte Frames werden weiterhin nicht dekodiert (eigenes Feature: COER-Envelope entpacken).
-- `cits_validate_pcap` begrenzt Dateigröße, aber nicht die Paketzahl.
+- (erledigt) IEEE-1609.2: signierte/unsecured Envelopes werden entpackt (`core/secured.py`), Payload wird von R01/R06 gelesen; verschlüsselte bleiben opak. Signaturen/Zertifikate werden NICHT geprüft. Vektoren sind nach Spec von Hand gebaut (keine echte gesicherte Aufnahme im Repo) – mit echtem EU-Mitschnitt gegenprüfen.
+- (erledigt) Paketlimit: `CITS_MCP_MAX_PACKETS` (Default 2 000 000), `scan_file(max_packets=)`, WARNING bei Abbruch.
 - `PcapHeaderInfo`/`PacketRecord` sind nicht `frozen` (Header-Zustand wird beim Iterieren befüllt).
 - BTP-Ports 2010/2013/2019 (`core/geonet.py`) gegen ETSI TS 103 248 abgleichen (nicht verifizierbar ohne Norm).
 - `release_for_message_id` bleibt als Alias von `message_type_for_id`.
 
-**Stand:** 409 Tests grün, Coverage 91,6 % (`mcp/` 96 %), ruff und mypy sauber.
+**Stand:** 431 Tests grün, Coverage 91,8 % (`mcp/` 96 %), ruff und mypy sauber.

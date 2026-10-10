@@ -32,9 +32,10 @@ class Asn1ConformanceRule(BaseRule):
     not decode is a finding, and one that decodes is not guessed at. Two limits
     are stated rather than worked around:
 
-    * IEEE 1609.2 secured frames carry their payload inside the security
-      envelope. They are counted as `secured_undecodable` and not decoded — a
-      plaintext decode of ciphertext would be a fabrication.
+    * IEEE 1609.2 *signed* frames carry a plaintext payload inside the envelope;
+      it is decoded (signatures are not verified). *Encrypted* frames and
+      unparsable envelopes are counted as `secured_undecodable` — a plaintext
+      decode of ciphertext would be a fabrication.
     * Release 1 and Release 2 have different decoders (different CDD module), so
       the release must be chosen explicitly for direct PDU decoding.
     """
@@ -126,8 +127,13 @@ class Asn1ConformanceRule(BaseRule):
             return []
 
         if frame.was_secured:
-            state["secured_undecodable"] = state.get("secured_undecodable", 0) + 1
-            return []
+            if frame.payload_offset is None:
+                # Encrypted (needs a key) or an unparsable envelope.
+                state["secured_undecodable"] = state.get("secured_undecodable", 0) + 1
+                return []
+            # Signed content is plaintext inside the envelope; only the signature is
+            # cryptographic, and it is not verified here.
+            state["secured_decoded"] = state.get("secured_decoded", 0) + 1
 
         # Report a missing decoder once per scan, not once per packet.
         if not is_available():

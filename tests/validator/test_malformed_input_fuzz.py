@@ -105,3 +105,14 @@ def test_lisa_text_parser_raises_only_value_error():
             parse_lisa_xml(data.decode("utf-8", errors="replace"))
         except ValueError:
             pass
+
+
+def test_secured_envelope_unwrap_never_raises_and_stays_in_bounds():
+    from cits_validator.core.secured import unwrap_secured
+
+    rng = random.Random(SEED)
+    sample = bytes([3, 0x81, 0x00, 0x40, 3, 0x80, 10]) + bytes(range(10)) + b"\xaa" * 40
+    for data in _mutations(sample, rng):
+        result = unwrap_secured(data)
+        if result is not None and result.payload_start is not None:
+            assert 0 <= result.payload_start <= result.payload_end <= len(data)

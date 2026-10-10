@@ -216,8 +216,7 @@ class LinkLayerRule(BaseRule):
         if frame.was_secured:
             self._cover(state, "secured")
             state["secured_frames"] = state.get("secured_frames", 0) + 1
-            return []
-        if frame.btp_port is None:
+        if frame.btp_port is None:  # encrypted or unparsable envelope: no port to report
             return []
 
         self._cover(state, "btp")
