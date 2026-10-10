@@ -1,0 +1,24 @@
+C-ITS Expert
+Copyright (c) Kevin Seipel. Licensed under the MIT License (see LICENSE).
+
+THIRD-PARTY STANDARDS TEXT - STATUS: NEEDS LEGAL REVIEW BEFORE WIDE PROMOTION
+
+cits_validator/asn1/standards/ contains ASN.1 modules taken from the following
+specifications. They are included only so that the conformance rule R06 can compile and
+decode PDUs. The copyright in these texts remains with the respective standards bodies.
+
+  - ETSI TS 102 894-2 (Common Data Dictionary), ETSI TS 103 301 (infrastructure services:
+    SPATEM, MAPEM, SREM, SSEM), ETSI EN 302 637-2 / TS 103 900 (CAM), ETSI EN 302 637-3 /
+    TS 103 831 (DENM), ETSI TS 103 324 (CPM), ETSI TS 103 300-3 (VAM)
+  - ISO TS 19091 (DSRC data elements) and ISO 24534-3 (vehicle data module)
+
+The per-file origin (standard, version, source URL, SHA-256) is recorded in
+cits_validator/asn1/standards/manifest.json.
+
+The vendored files carry no licence or copyright header of their own, and this repository
+has not established the redistribution terms of each source (ETSI Forge repository, ISO
+publication). Until that is documented, treat the files as third-party material under their
+owners' terms, not under the MIT License of this project's own code.
+
+IEEE 1609.2 ASN.1 modules are deliberately NOT included; cits_validator/core/secured.py
+reads the COER envelope structure without them.

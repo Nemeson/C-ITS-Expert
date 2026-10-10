@@ -1,6 +1,7 @@
 # C-ITS Expert: The Definitive V2X Engineering & Agent Skill Suite
 
 [![CI Pipeline](https://github.com/Nemeson/C-ITS-Expert/actions/workflows/validate-skill.yml/badge.svg)](https://github.com/Nemeson/C-ITS-Expert/actions)
+[![Release](https://img.shields.io/github/v/release/Nemeson/C-ITS-Expert)](https://github.com/Nemeson/C-ITS-Expert/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Changelog](https://img.shields.io/badge/Changelog-Keep%20a%20Changelog-blue.svg)](CHANGELOG.md)
 [![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
