@@ -1,24 +1,36 @@
 C-ITS Expert
 Copyright (c) Kevin Seipel. Licensed under the MIT License (see LICENSE).
 
-THIRD-PARTY STANDARDS TEXT - STATUS: NEEDS LEGAL REVIEW BEFORE WIDE PROMOTION
+THIRD-PARTY STANDARDS TEXT
 
-cits_validator/asn1/standards/ contains ASN.1 modules taken from the following
-specifications. They are included only so that the conformance rule R06 can compile and
-decode PDUs. The copyright in these texts remains with the respective standards bodies.
-
-  - ETSI TS 102 894-2 (Common Data Dictionary), ETSI TS 103 301 (infrastructure services:
-    SPATEM, MAPEM, SREM, SSEM), ETSI EN 302 637-2 / TS 103 900 (CAM), ETSI EN 302 637-3 /
-    TS 103 831 (DENM), ETSI TS 103 324 (CPM), ETSI TS 103 300-3 (VAM)
-  - ISO TS 19091 (DSRC data elements) and ISO 24534-3 (vehicle data module)
-
-The per-file origin (standard, version, source URL, SHA-256) is recorded in
+cits_validator/asn1/standards/ contains ASN.1 modules taken from published specifications. They
+are included only so that the conformance rule R06 can compile and decode PDUs. The per-file
+origin (standard, version, source URL, SHA-256, licence) is recorded in
 cits_validator/asn1/standards/manifest.json.
 
-The vendored files carry no licence or copyright header of their own, and this repository
-has not established the redistribution terms of each source (ETSI Forge repository, ISO
-publication). Until that is documented, treat the files as third-party material under their
-owners' terms, not under the MIT License of this project's own code.
+1. ETSI modules - BSD-3-Clause
+   Modules from the ETSI Forge repositories https://forge.etsi.org/rep/ITS/asn1/ (cdd_ts102894_2,
+   is_ts103301, cam_en302637_2, denm_en302637_3, cam_ts103900, denm_ts103831, cpm_ts103324,
+   vam-ts103300_3) are licensed by ETSI under the BSD-3-Clause licence. Copyright (c) ETSI, years
+   as listed in cits_validator/asn1/standards/LICENSE-ETSI.txt, which reproduces the licence text
+   as required (retain the copyright notice, the conditions and the disclaimer on redistribution).
+   The name of ETSI or its contributors is not used to endorse this project.
 
-IEEE 1609.2 ASN.1 modules are deliberately NOT included; cits_validator/core/secured.py
-reads the COER envelope structure without them.
+2. ISO-authored text republished by ETSI - REDISTRIBUTION RIGHT UNCONFIRMED
+   Three files contain text authored by ISO, obtained from the ETSI repository is_ts103301:
+     - ISO-TS-19091-DSRC.raw.asn            (ISO/TS 19091)
+     - ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn (ISO 24534-3;
+       a modified copy as published by ETSI)
+     - DSRC.asn                             (ETSI TS 103 301 v2.2.1, derived from ISO/TS 19091)
+   ISO's own licence for these "electronic inserts" permits use in their original format without
+   modification for the purposes of the standard (https://standards.iso.org/iso/ts/19091/). It does
+   not state a right to redistribute, and the "patched" file is a modified copy. ETSI publishes
+   these files in a BSD-3-Clause repository, but the copyright in the ISO text remains with ISO.
+   The maintainer intends to ask ISO and ETSI to confirm redistribution (drafts in
+   docs/legal/permission-requests.md). If that is refused, these files will be removed and fetched on demand instead.
+
+3. IEEE 1609.2
+   No IEEE 1609.2 ASN.1 module is included. cits_validator/core/secured.py reads the COER
+   envelope structure directly.
+
+This file is a statement of provenance, not legal advice.

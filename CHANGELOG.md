@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `LICENSE-ETSI.txt` shipped with the vendored ETSI modules (BSD-3-Clause, copyright years per repository), a per-module `license` field in the manifest, and a rewritten `NOTICE`.
+- `docs/legal/permission-requests.md`: drafts to ISO and ETSI about redistributing three ISO-authored files.
 
 ### Changed
 
 ### Fixed
+- Manifest source URLs for the Common Data Dictionary and VAM pointed at repositories that do not exist (`ITS_ASN1`, `vam_ts103300`); they now name `cdd_ts102894_2` and `vam-ts103300_3`.
 
 ### Security
 

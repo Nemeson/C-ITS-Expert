@@ -35,6 +35,7 @@ class ModuleProvenance:
     source_url: str
     source_path: str = ""
     sha256: str = ""
+    license: str = ""
 
     @property
     def path(self) -> Path:

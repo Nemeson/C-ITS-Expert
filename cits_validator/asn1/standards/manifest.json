@@ -6,9 +6,10 @@
       "standard": "ETSI TS 102 894-2",
       "version": "v1.3.1",
       "scope": "CDD",
-      "source_url": "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2",
       "source_path": "cdd/ts102894-2/v1.3.1/ITS-Container.asn",
-      "sha256": "afc658e2ad6382539a7710dd2607051a5416b5ed9cb3e681a6d52328cde8d0f9"
+      "sha256": "afc658e2ad6382539a7710dd2607051a5416b5ed9cb3e681a6d52328cde8d0f9",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/SPATEM-PDU-Descriptions.asn",
@@ -18,7 +19,8 @@
       "scope": "SPATEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v1.3.1/SPATEM-PDU-Descriptions.asn",
-      "sha256": "bfd2d84d5885fa28d3b281eb4475be438c1d819a60080b7806e1d4dfa315a697"
+      "sha256": "bfd2d84d5885fa28d3b281eb4475be438c1d819a60080b7806e1d4dfa315a697",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/MAPEM-PDU-Descriptions.asn",
@@ -28,7 +30,8 @@
       "scope": "MAPEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v1.3.1/MAPEM-PDU-Descriptions.asn",
-      "sha256": "82648ae0fae74317e36f9b1aeecb0609126cc55ce798abd39fe9a54972aeec15"
+      "sha256": "82648ae0fae74317e36f9b1aeecb0609126cc55ce798abd39fe9a54972aeec15",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/SREM-PDU-Descriptions.asn",
@@ -38,7 +41,8 @@
       "scope": "SREM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v1.3.1/SREM-PDU-Descriptions.asn",
-      "sha256": "acb6612d0f9b607c73bf52701aeb254c43f81df9107fdbfdf00a41be5d5af926"
+      "sha256": "acb6612d0f9b607c73bf52701aeb254c43f81df9107fdbfdf00a41be5d5af926",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/SSEM-PDU-Descriptions.asn",
@@ -48,7 +52,8 @@
       "scope": "SSEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v1.3.1/SSEM-PDU-Descriptions.asn",
-      "sha256": "40cc0bab08ba0f6b3890ada56360266063bc0176f099ff33a16de9915c27fa65"
+      "sha256": "40cc0bab08ba0f6b3890ada56360266063bc0176f099ff33a16de9915c27fa65",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/ISO-TS-19091-DSRC.raw.asn",
@@ -58,7 +63,8 @@
       "scope": "DSRC (SPAT/MAP/SRM/SSM)",
       "source_url": "https://standards.iso.org/iso/ts/19091",
       "source_path": "infrastructure/ts103301/v2.2.1/reference/ISO-TS-19091-DSRC.raw.asn",
-      "sha256": "6f485362b58219f3b2e6924e0b831a4a9525560b9bb47998d8968d09558c267c"
+      "sha256": "6f485362b58219f3b2e6924e0b831a4a9525560b9bb47998d8968d09558c267c",
+      "license": "ISO-authored text republished by ETSI (BSD-3-Clause repository); redistribution right from ISO unconfirmed"
     },
     {
       "file": "r1/ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn",
@@ -68,7 +74,8 @@
       "scope": "ElectronicRegistrationIdentificationVehicleDataModule",
       "source_url": "https://standards.iso.org/iso/24534/-3",
       "source_path": "infrastructure/ts103301/v2.1.1/iso-patched/ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn",
-      "sha256": "489b6dc308ce131b71113422b7c64941772098b7cb9267b34af20d1a94253df0"
+      "sha256": "489b6dc308ce131b71113422b7c64941772098b7cb9267b34af20d1a94253df0",
+      "license": "ISO-authored text republished by ETSI (BSD-3-Clause repository); redistribution right from ISO unconfirmed"
     },
     {
       "file": "r1/CAM-PDU-Descriptions.asn",
@@ -78,7 +85,8 @@
       "scope": "CAM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2",
       "source_path": "cam/en302637-2/v1.4.1/CAM-PDU-Descriptions.asn",
-      "sha256": "78e42dbd0dc95d9f2fa7bf1b00d7484dfb8b1b89b064a2f34c60372a775f0449"
+      "sha256": "78e42dbd0dc95d9f2fa7bf1b00d7484dfb8b1b89b064a2f34c60372a775f0449",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r1/DENM-PDU-Descriptions.asn",
@@ -88,7 +96,8 @@
       "scope": "DENM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/denm_en302637_3",
       "source_path": "denm/en302637-3/v1.3.1/DENM-PDU-Descriptions.asn",
-      "sha256": "c5025c63ad99c6c2d5e8cfc22e32f6e513885e388f09ccf5227f3cee0be333ce"
+      "sha256": "c5025c63ad99c6c2d5e8cfc22e32f6e513885e388f09ccf5227f3cee0be333ce",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/ETSI-ITS-CDD.asn",
@@ -96,9 +105,10 @@
       "standard": "ETSI TS 102 894-2",
       "version": "v2.4.1",
       "scope": "CDD",
-      "source_url": "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2",
       "source_path": "cdd/ts102894-2/v2.4.1/ETSI-ITS-CDD.asn",
-      "sha256": "da0cb8194952e351c432b6b328ac7a3cfbdce0f30050ec7aa19c50c755a6246b"
+      "sha256": "da0cb8194952e351c432b6b328ac7a3cfbdce0f30050ec7aa19c50c755a6246b",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/SPATEM-PDU-Descriptions.asn",
@@ -108,7 +118,8 @@
       "scope": "SPATEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v2.2.1/SPATEM-PDU-Descriptions.asn",
-      "sha256": "32b02176ee99e9b7bfa9d245dc48b91e875e3145d31cf621a1d80dae2ea9adc4"
+      "sha256": "32b02176ee99e9b7bfa9d245dc48b91e875e3145d31cf621a1d80dae2ea9adc4",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/MAPEM-PDU-Descriptions.asn",
@@ -118,7 +129,8 @@
       "scope": "MAPEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v2.2.1/MAPEM-PDU-Descriptions.asn",
-      "sha256": "9fb953112b3a9488042eab107780f392ba500716dbf2067c54d18636ab577b90"
+      "sha256": "9fb953112b3a9488042eab107780f392ba500716dbf2067c54d18636ab577b90",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/SREM-PDU-Descriptions.asn",
@@ -128,7 +140,8 @@
       "scope": "SREM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v2.2.1/SREM-PDU-Descriptions.asn",
-      "sha256": "cbf9049812ab8a2150c9321a00ca4c74ea5df9723c256df0da3a1c9d4c96a713"
+      "sha256": "cbf9049812ab8a2150c9321a00ca4c74ea5df9723c256df0da3a1c9d4c96a713",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/SSEM-PDU-Descriptions.asn",
@@ -138,7 +151,8 @@
       "scope": "SSEM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v2.2.1/SSEM-PDU-Descriptions.asn",
-      "sha256": "986f79d48b351d216956e12577ba9d08eef17e247d6dd678797e7fcdbd5e4036"
+      "sha256": "986f79d48b351d216956e12577ba9d08eef17e247d6dd678797e7fcdbd5e4036",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/DSRC.asn",
@@ -148,7 +162,8 @@
       "scope": "ETSI-ITS-DSRC",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/is_ts103301",
       "source_path": "infrastructure/ts103301/v2.2.1/DSRC.asn",
-      "sha256": "c6c1b61c04f1ec4799fb65e4bb3ff8c59af47c4cf26a3645389ede9f0c5fd952"
+      "sha256": "c6c1b61c04f1ec4799fb65e4bb3ff8c59af47c4cf26a3645389ede9f0c5fd952",
+      "license": "ISO-authored text republished by ETSI (BSD-3-Clause repository); redistribution right from ISO unconfirmed"
     },
     {
       "file": "r2/CAM-PDU-Descriptions.asn",
@@ -158,7 +173,8 @@
       "scope": "CAM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cam_ts103900",
       "source_path": "cam/ts103900/v2.3.1/CAM-PDU-Descriptions.asn",
-      "sha256": "4abce4126042b6f702c1f80ff1dfe9f9cc1248950c9f505d68f8b79dac418800"
+      "sha256": "4abce4126042b6f702c1f80ff1dfe9f9cc1248950c9f505d68f8b79dac418800",
+      "license": "BSD-3-Clause (Copyright 2024 ETSI)"
     },
     {
       "file": "r2/DENM-PDU-Descriptions.asn",
@@ -168,7 +184,8 @@
       "scope": "DENM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/denm_ts103831",
       "source_path": "denm/ts103831/v2.3.1/DENM-PDU-Descriptions.asn",
-      "sha256": "f00676f85a19bc79012966d9140d39c547b80ce25b9b3b27581e505b65d07631"
+      "sha256": "f00676f85a19bc79012966d9140d39c547b80ce25b9b3b27581e505b65d07631",
+      "license": "BSD-3-Clause (Copyright 2022 ETSI)"
     },
     {
       "file": "r2/CPM-PDU-Descriptions.asn",
@@ -178,7 +195,8 @@
       "scope": "CPM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
       "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PDU-Descriptions.asn",
-      "sha256": "90c6b015bdc99917dd36bc8e7d1ede9355374f5d3a1c12e14bb4d560340fdfa2"
+      "sha256": "90c6b015bdc99917dd36bc8e7d1ede9355374f5d3a1c12e14bb4d560340fdfa2",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/CPM-OriginatingStationContainers.asn",
@@ -188,7 +206,8 @@
       "scope": "CPM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
       "source_path": "cpm/ts103324/v2.1.1/asn/CPM-OriginatingStationContainers.asn",
-      "sha256": "333146879622e54a75969ee5d18c0b839ca5426f9f42c05744fc996ba921e10d"
+      "sha256": "333146879622e54a75969ee5d18c0b839ca5426f9f42c05744fc996ba921e10d",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/CPM-PerceivedObjectContainer.asn",
@@ -198,7 +217,8 @@
       "scope": "CPM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
       "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PerceivedObjectContainer.asn",
-      "sha256": "71f3482ba2a43f874aaa5dce990baeb37c892f277529de83d1275f577ce2d533"
+      "sha256": "71f3482ba2a43f874aaa5dce990baeb37c892f277529de83d1275f577ce2d533",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/CPM-PerceptionRegionContainer.asn",
@@ -208,7 +228,8 @@
       "scope": "CPM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
       "source_path": "cpm/ts103324/v2.1.1/asn/CPM-PerceptionRegionContainer.asn",
-      "sha256": "e8fc77e0b10fe8cec191192f49d2049add8f3c1c3c4c63a364e6b64f77750910"
+      "sha256": "e8fc77e0b10fe8cec191192f49d2049add8f3c1c3c4c63a364e6b64f77750910",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/CPM-SensorInformationContainer.asn",
@@ -218,7 +239,8 @@
       "scope": "CPM",
       "source_url": "https://forge.etsi.org/rep/ITS/asn1/cpm_ts103324",
       "source_path": "cpm/ts103324/v2.1.1/asn/CPM-SensorInformationContainer.asn",
-      "sha256": "662653e5854b3d4057b98be70277d12fae2d14e8ea61808a9325b947201da462"
+      "sha256": "662653e5854b3d4057b98be70277d12fae2d14e8ea61808a9325b947201da462",
+      "license": "BSD-3-Clause (Copyright 2019 ETSI)"
     },
     {
       "file": "r2/VAM-PDU-Descriptions.asn",
@@ -226,9 +248,10 @@
       "standard": "ETSI TS 103 300-3",
       "version": "v2.3.1",
       "scope": "VAM",
-      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam-ts103300_3",
       "source_path": "vru-vam/ts103300-3/v2.3.1/VAM-PDU-Descriptions.asn",
-      "sha256": "5631c6d2534a7883fe329f9fe40f45b039e3c9d0611560ea7ef20d3a9ba3d11f"
+      "sha256": "5631c6d2534a7883fe329f9fe40f45b039e3c9d0611560ea7ef20d3a9ba3d11f",
+      "license": "BSD-3-Clause (Copyright 2020 ETSI)"
     },
     {
       "file": "r2/motorcyclist-special-container.asn",
@@ -236,9 +259,10 @@
       "standard": "ETSI TS 103 300-3",
       "version": "v2.3.1",
       "scope": "VAM",
-      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+      "source_url": "https://forge.etsi.org/rep/ITS/asn1/vam-ts103300_3",
       "source_path": "vru-vam/ts103300-3/v2.3.1/motorcyclist-special-container.asn",
-      "sha256": "846a7517c3de316292e331e39cd69446d5a281a2fd0b73fff5d804b1022c2f0f"
+      "sha256": "846a7517c3de316292e331e39cd69446d5a281a2fd0b73fff5d804b1022c2f0f",
+      "license": "BSD-3-Clause (Copyright 2020 ETSI)"
     }
   ]
 }

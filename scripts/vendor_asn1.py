@@ -22,6 +22,20 @@ import sys
 from pathlib import Path
 
 DEFAULT_SOURCE = Path(os.environ["CITS_ASN1_SOURCE"]) if os.environ.get("CITS_ASN1_SOURCE") else None
+ETSI_COPYRIGHT_YEAR = {"cdd_ts102894_2": "2019", "is_ts103301": "2019", "cam_en302637_2": "2019", "denm_en302637_3": "2019", "cpm_ts103324": "2019", "vam-ts103300_3": "2020", "denm_ts103831": "2022", "cam_ts103900": "2024"}
+# ISO-authored text that ETSI republishes; ISO's own licence covers only unmodified use.
+ISO_DERIVED = ["r1/ISO-TS-19091-DSRC.raw.asn", "r1/ISO24534-3_ElectronicRegistrationIdentificationVehicleDataModule-patched.asn", "r2/DSRC.asn"]
+
+
+def _licence_for(file: str, url: str) -> str:
+    if file in ISO_DERIVED:
+        return (
+            "ISO-authored text republished by ETSI (BSD-3-Clause repository); "
+            "redistribution right from ISO unconfirmed"
+        )
+    return f"BSD-3-Clause (Copyright {ETSI_COPYRIGHT_YEAR[url.rstrip('/').split('/')[-1]]} ETSI)"
+
+
 DEFAULT_DEST = Path(__file__).resolve().parent.parent / "cits_validator" / "asn1" / "standards"
 
 # (relative source path, release, standard, version, message scope, source URL)
@@ -33,7 +47,7 @@ MODULES: list[tuple[str, str, str, str, str, str]] = [
         "ETSI TS 102 894-2",
         "v1.3.1",
         "CDD",
-        "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+        "https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2",
     ),
     # Release 1 — Infrastructure (SPATEM/MAPEM/SREM/SSEM) + its DSRC and ISO deps
     (
@@ -109,7 +123,7 @@ MODULES: list[tuple[str, str, str, str, str, str]] = [
         "ETSI TS 102 894-2",
         "v2.4.1",
         "CDD",
-        "https://forge.etsi.org/rep/ITS/asn1/ITS_ASN1",
+        "https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2",
     ),
     # Release 2 — Infrastructure + DSRC
     (
@@ -217,7 +231,7 @@ MODULES: list[tuple[str, str, str, str, str, str]] = [
         "ETSI TS 103 300-3",
         "v2.3.1",
         "VAM",
-        "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+        "https://forge.etsi.org/rep/ITS/asn1/vam-ts103300_3",
     ),
     (
         "vru-vam/ts103300-3/v2.3.1/motorcyclist-special-container.asn",
@@ -225,7 +239,7 @@ MODULES: list[tuple[str, str, str, str, str, str]] = [
         "ETSI TS 103 300-3",
         "v2.3.1",
         "VAM",
-        "https://forge.etsi.org/rep/ITS/asn1/vam_ts103300",
+        "https://forge.etsi.org/rep/ITS/asn1/vam-ts103300_3",
     ),
 ]
 
@@ -264,6 +278,7 @@ def main(argv: list[str]) -> int:
                 "scope": scope,
                 "source_url": url,
                 "source_path": rel,
+                "license": _licence_for(f"{release}/{src.name}", url),
                 "sha256": hashlib.sha256(dst.read_bytes().replace(bytes([13, 10]), bytes([10]))).hexdigest(),
             }
         )

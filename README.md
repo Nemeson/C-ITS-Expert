@@ -207,6 +207,9 @@ cits-lint --pdu 0204000013900000181c81000000001043000320 --msg-type SPATEM
 | `R05` | ESP32-C5 `ITS5`/`ITS6` framing, RSSI sentinel, host time anchoring. |
 | `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). Decodes CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM and VAM, including the payload of IEEE 1609.2 *signed* messages (signatures are not verified). Also flags trailing bytes, `messageID`/port mismatches and the sampling cutoff. |
 
+### Licensing of the vendored standards text
+ETSI ASN.1 modules are BSD-3-Clause (see `cits_validator/asn1/standards/LICENSE-ETSI.txt`). Three ISO-authored files have an unconfirmed redistribution status; see [`NOTICE`](NOTICE).
+
 ### BTP destination ports (ETSI TS 103 248, Table 1)
 
 | Port | Service | Port | Service |
