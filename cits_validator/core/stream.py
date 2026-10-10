@@ -15,6 +15,11 @@ PCAPNG_BT_PB = 0x00000002
 # Blocks whose body is a captured record; anything else is skipped generically.
 PCAPNG_RECORD_BLOCKS = {PCAPNG_BT_EPB, PCAPNG_BT_SPB, PCAPNG_BT_PB}
 
+# Length fields come from the (untrusted) file; cap them so a forged header cannot
+# make a single read() allocate gigabytes.
+MAX_RECORD_BYTES = 262_144  # classic-pcap caplen; also the usual maximum snaplen
+MAX_BLOCK_BYTES = 1 << 20  # any PCAPNG block, including the Section Header Block
+
 
 @dataclass
 class PcapHeaderInfo:
@@ -127,17 +132,12 @@ class PcapStreamingIterator:
         length_bytes = stream.read(4)
         if len(length_bytes) < 4:
             raise ValueError("Truncated PCAPNG Section Header Block (no block length)")
-        block_len = struct.unpack("<I", length_bytes)[0]
-        if block_len < 28 or block_len % 4 != 0:
-            raise ValueError(f"Invalid PCAPNG Section Header block length: {block_len}")
-
-        rest = stream.read(block_len - 8)
-        if len(rest) < block_len - 8:
-            raise ValueError("Truncated PCAPNG Section Header Block body")
-
-        bom = rest[0:4]
+        bom = stream.read(4)
+        if len(bom) < 4:
+            raise ValueError("Truncated PCAPNG Section Header Block (no byte-order magic)")
         # The PCAPNG byte-order magic is 0x1A2B3C4D, emitted in the file's own
         # byte order: 1A 2B 3C 4D means big-endian, 4D 3C 2B 1A little-endian.
+        # It must be read before the block length, which uses that same order.
         if bom == b"\x4d\x3c\x2b\x1a":
             byte_order = "little"
         elif bom == b"\x1a\x2b\x3c\x4d":
@@ -146,6 +146,14 @@ class PcapStreamingIterator:
             raise ValueError(f"Invalid PCAPNG byte-order magic: {bom.hex()}")
 
         fmt = "<" if byte_order == "little" else ">"
+        block_len = struct.unpack(f"{fmt}I", length_bytes)[0]
+        if block_len < 28 or block_len % 4 != 0 or block_len > MAX_BLOCK_BYTES:
+            raise ValueError(f"Invalid PCAPNG Section Header block length: {block_len}")
+
+        rest = bom + stream.read(block_len - 12)
+        if len(rest) < block_len - 8:
+            raise ValueError("Truncated PCAPNG Section Header Block body")
+
         major, minor = struct.unpack(f"{fmt}HH", rest[4:8])
 
         self.interfaces = []
@@ -169,6 +177,9 @@ class PcapStreamingIterator:
         self.truncated_eof = False
 
         if isinstance(stream_or_path, (str, Path)):
+            # A fresh file starts at its global header; drop state from any earlier pass.
+            self.header_info = None
+            self.interfaces = []
             with open(stream_or_path, "rb") as f:
                 yield from self._iter_stream(f)
         else:
@@ -200,6 +211,9 @@ class PcapStreamingIterator:
                 break
 
             ts_sec, ts_sub, caplen, origlen = struct.unpack(f"{fmt_char}IIII", rec_hdr)
+            if caplen > MAX_RECORD_BYTES:
+                self.truncated_eof = True  # corrupt or hostile length; stream is unusable
+                break
             data = stream.read(caplen)
 
             if len(data) < caplen:
@@ -230,16 +244,20 @@ class PcapStreamingIterator:
                 break
 
             block_type, block_len = struct.unpack(f"{fmt}II", head)
-            if block_len < 12 or block_len % 4 != 0:
+            if block_len < 12 or block_len % 4 != 0 or block_len > MAX_BLOCK_BYTES:
                 self.truncated_eof = True
                 break
 
             body_len = block_len - 12
             body = stream.read(body_len)
-            if len(body) < body_len:
+            trailer = stream.read(4)
+            if (
+                len(body) < body_len
+                or len(trailer) < 4
+                or struct.unpack(f"{fmt}I", trailer)[0] != block_len
+            ):
                 self.truncated_eof = True
                 break
-            stream.read(4)  # trailing block total length
 
             if block_type == PCAPNG_BT_SHB:
                 # A new section may re-declare its byte order; interfaces reset.
