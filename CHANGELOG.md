@@ -108,6 +108,7 @@ changes that can affect existing deployments are marked **(behaviour change)**.
 - **LISA:** namespaced XML, duplicate/invalid `ObjNr` are reported, aspects are no longer
   invented, aspects are matched as words (not substrings).
 - `iter_records(path)` returns the same records on every call.
+- The zipapp `.sha256` file is LF-terminated on every platform, so `sha256sum -c` works for the release assets.
 - JSON-RPC errors carry the real request `id` and the right code (`-32700`, `-32600`,
   `-32602`, `-32603`).
 
