@@ -89,7 +89,16 @@ Port assignments follow **ETSI TS 103 248, Table 1** (v2.4.1). Two values are ea
 
 ## 4. Security Envelope Stripping (IEEE 1609.2 / ETSI TS 103 097)
 
-If the payload following BTP begins with byte `0x03` or `0x80`, it contains an IEEE 1609.2 security wrapper:
-- `0x03`: Secured Data format version.
-- Outer payload contains Content Type (`signedData`, `encryptedData`, or `unsecuredData`), Signer Info (digest or certificate), and Signature.
-- Extract the inner `to-be-signed` payload to access the plain ASN.1 UPER-encoded ITS message.
+A GeoNetworking Basic Header with `next header = 2` announces a *secured packet*. The
+IEEE 1609.2 envelope (COER `Ieee1609Dot2Data`) follows the Basic Header directly, and the
+Common Header, extended header, BTP header and ITS PDU are **inside** it:
+
+- Byte 0: `0x03` (protocolVersion). Byte 1 is the content tag: `0x80` unsecuredData,
+  `0x81` signedData, `0x82` encryptedData.
+- `signedData`: `hashId` (1 byte), then `tbsData`. Its `SignedDataPayload` preamble is `0x40`
+  when `data` is present, followed by a nested `0x03 0x80` and the payload as an `Opaque`
+  (COER length determinant: one byte below 128, otherwise `0x80 | n` followed by `n` bytes).
+  The usual prefix on the wire is `03 81 00 40 03 80`. `headerInfo`, signer and signature
+  follow the payload.
+- The payload starts with the GN Common Header; parse the extended header and BTP as usual.
+- `encryptedData` cannot be read without a key. Signatures are not verified by this toolkit.

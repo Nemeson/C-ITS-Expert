@@ -22,8 +22,19 @@ class PrioritySessionRule(BaseRule):
 
     def audit_event(self, event: dict[str, Any], state: dict[str, Any]) -> list[Violation]:
         violations: list[Violation] = []
-        ev_type = event.get("type", "").upper()
-        timestamp = float(event.get("timestamp", 0.0))
+        ev_type = str(event.get("type") or "").upper()
+        try:
+            timestamp = float(event.get("timestamp", 0.0))
+        except (TypeError, ValueError):
+            violations.append(
+                Violation(
+                    rule_id=self.rule_id,
+                    severity=Severity.WARNING,
+                    message=f"Priority event ignored: invalid timestamp {event.get('timestamp')!r}",
+                    offending_sample=str(event.get("type")),
+                )
+            )
+            return violations
 
         intersection_id = event.get("intersectionId")
         request_id = event.get("requestId")
@@ -37,6 +48,16 @@ class PrioritySessionRule(BaseRule):
         sessions = state.setdefault("active_priority_sessions", {})
 
         if ev_type == "SREM":
+            if key in sessions:
+                violations.append(
+                    Violation(
+                        rule_id=self.rule_id,
+                        severity=Severity.WARNING,
+                        message="duplicate SREM for an active priority session; keeping the first",
+                        offending_sample=str(key),
+                    )
+                )
+                return violations
             sessions[key] = {
                 "request_time": timestamp,
                 "role": event.get("role", "unknown"),
@@ -55,8 +76,15 @@ class PrioritySessionRule(BaseRule):
                         )
                     )
             else:
-                # SSEM response with no preceding SREM seen in this capture window
-                pass
+                # The request may predate the capture window, so this is informational.
+                violations.append(
+                    Violation(
+                        rule_id=self.rule_id,
+                        severity=Severity.INFO,
+                        message="SSEM with no preceding SREM in this capture",
+                        offending_sample=str(key),
+                    )
+                )
 
         return violations
 

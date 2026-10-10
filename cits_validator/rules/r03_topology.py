@@ -6,6 +6,28 @@ from typing import Any
 from cits_validator.core.models import Severity, Violation
 from cits_validator.core.registry import BaseRule
 
+_LANE_ID_KEYS = ("laneId", "lane_id", "laneID")
+_NODE_TOLERANCE = 1e-9  # degrees (~0.1 mm); absorbs float round-trip noise only
+
+
+def _lane_id(lane: dict[str, Any]) -> Any:
+    """Lane id under any key spelling used by the decoder, the adapter or the CLI."""
+    for key in _LANE_ID_KEYS:
+        if lane.get(key) is not None:
+            return lane[key]
+    return None
+
+
+def _nodes_equal(left: Any, right: Any) -> bool:
+    """Structural equality of node lists, tolerant to float noise in coordinates."""
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return math.isclose(left, right, rel_tol=0.0, abs_tol=_NODE_TOLERANCE)
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(_nodes_equal(left[k], right[k]) for k in left)
+    if isinstance(left, (list, tuple)) and isinstance(right, (list, tuple)):
+        return len(left) == len(right) and all(_nodes_equal(a, b) for a, b in zip(left, right, strict=True))
+    return bool(left == right)
+
 
 class MapemTopologyRule(BaseRule):
     """Enforces multi-fragment MAPEM additive accumulation and Node-0 stopline orientation."""
@@ -31,6 +53,9 @@ class MapemTopologyRule(BaseRule):
             if max_stopline_chord_meters is not None
             else self.DEFAULT_MAX_STOPLINE_CHORD_METERS
         )
+
+    def metadata(self) -> dict[str, Any]:
+        return {"max_stopline_chord_meters": self.max_stopline_chord_meters}
 
     @classmethod
     def haversine_distance(cls, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -105,16 +130,18 @@ class MapemTopologyRule(BaseRule):
         if layer_id is not None:
             target["layers"].add(layer_id)
 
-        incoming_lanes = fragment.get("lanes", [])
+        incoming_lanes = fragment.get("lanes") or []
         for lane in incoming_lanes:
-            lane_id = lane.get("laneId")
+            if not isinstance(lane, dict):
+                continue
+            lane_id = _lane_id(lane)
             if lane_id is None:
                 continue
 
             if lane_id in target["lanes"]:
                 # Check for conflicting geometry overwrite
                 existing = target["lanes"][lane_id]
-                if existing.get("nodes") != lane.get("nodes"):
+                if not _nodes_equal(existing.get("nodes"), lane.get("nodes")):
                     violations.append(
                         Violation(
                             rule_id=self.rule_id,

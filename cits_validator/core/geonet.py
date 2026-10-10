@@ -16,10 +16,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cits_validator.core.secured import unwrap_secured
+
 ETHERTYPE_GEONETWORKING = 0x8947
 ETHERTYPE_VLAN_8021Q = 0x8100
 ETHERTYPE_VLAN_8021AD = 0x88A8
 ETHERNET_HEADER_LEN = 14
+GEONET_VERSION = 1
 VLAN_TAG_LEN = 4
 LLC_SNAP_GEONET = b"\xaa\xaa\x03\x00\x00\x00\x89\x47"
 
@@ -91,6 +94,12 @@ class GeoNetworkingFrame:
     btp_offset: int | None = None
     btp_port: int | None = None
     payload_offset: int | None = None
+    # End of the BTP payload: bounded by the Common Header PL when plausible, else the
+    # frame end. Excludes trailing FCS/padding that the capture appended.
+    payload_end: int | None = None
+    # For secured frames: "signed", "unsecured" or "encrypted"; None when the
+    # envelope could not be parsed (or the frame is not secured).
+    secured_kind: str | None = None
 
 
 def link_layer_offset(data: bytes, dlt: int) -> int | None:
@@ -110,19 +119,43 @@ def link_layer_offset(data: bytes, dlt: int) -> int | None:
     return None
 
 
-def _ethernet_geonet_offset(data: bytes) -> int | None:
+def dot11_mac_header_len(fc: int) -> int:
+    """Length of an 802.11 Data-frame MAC header, derived from the Frame Control word.
+
+    24 bytes, +6 for Address 4 (ToDS and FromDS, i.e. WDS), +2 for QoS Control,
+    +4 for HT Control when the Order bit is set on a QoS frame. Captures vary;
+    each component is derived from Frame Control, never assumed.
+    """
+    mac_len = 24
+    if (fc >> 8) & 0x01 and (fc >> 9) & 0x01:
+        mac_len += 6
+    if ((fc >> 4) & 0x0F) == 8:  # QoS Data
+        mac_len += 2
+        if (fc >> 15) & 0x01:
+            mac_len += 4
+    return mac_len
+
+
+def ethernet_payload(data: bytes) -> tuple[int, int] | None:
+    """Returns ``(ethertype, payload_offset)``, unwrapping one 802.1Q/802.1ad tag."""
     if len(data) < ETHERNET_HEADER_LEN:
         return None
     offset = ETHERNET_HEADER_LEN
     ethertype = int.from_bytes(data[12:14], "big")
-
     if ethertype in (ETHERTYPE_VLAN_8021Q, ETHERTYPE_VLAN_8021AD):
         # 802.1Q: dst(6) src(6) TPID(2) TCI(2) inner-EtherType(2) payload.
-        # The inner EtherType sits two bytes before the payload, not four.
         if len(data) < offset + VLAN_TAG_LEN:
             return None
         ethertype = int.from_bytes(data[offset + VLAN_TAG_LEN - 2 : offset + VLAN_TAG_LEN], "big")
         offset += VLAN_TAG_LEN
+    return ethertype, offset
+
+
+def _ethernet_geonet_offset(data: bytes) -> int | None:
+    parsed = ethernet_payload(data)
+    if parsed is None:
+        return None
+    ethertype, offset = parsed
 
     if ethertype == ETHERTYPE_GEONETWORKING:
         return offset
@@ -149,20 +182,7 @@ def _dot11_geonet_offset(data: bytes, dlt: int) -> int | None:
     if ((fc >> 2) & 0x03) != 2:  # Not a Data frame
         return None
 
-    to_ds = (fc >> 8) & 0x01
-    from_ds = (fc >> 9) & 0x01
-    # 802.11 MAC header: 24 bytes, +6 for Address 4 (WDS), +2 for QoS Control,
-    # +4 for HT Control when the Order bit is set on a QoS frame. Captures vary;
-    # each component is derived from the Frame Control word, never assumed.
-    mac_len = 24
-    if to_ds and from_ds:
-        mac_len += 6
-    subtype = (fc >> 4) & 0x0F
-    if subtype == 8:  # QoS Data
-        mac_len += 2
-    if subtype == 8 and ((fc >> 15) & 0x01):  # Order bit on a QoS frame
-        mac_len += 4
-    offset += mac_len
+    offset += dot11_mac_header_len(fc)
 
     if len(data) < offset + 8:
         return None
@@ -196,9 +216,11 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
     """Resolves the GeoNetworking headers and the BTP payload of one frame.
 
     Returns ``None`` when the frame is not GeoNetworking or a header cannot be
-    resolved. A secured frame is returned with ``was_secured=True`` and no
-    ``btp_offset``: its Common Header sits inside the IEEE 1609.2 envelope, so
-    reporting a port from the ciphertext would be a fabrication.
+    resolved. A secured frame (IEEE 1609.2) is returned with ``was_secured=True``.
+    Its Common Header sits inside the envelope: for *signed* (or plain
+    *unsecured*) content the plaintext is read from there; for *encrypted*
+    content, or an envelope that cannot be parsed, no port is reported rather
+    than a fabricated one.
     """
     basic_offset = link_layer_offset(data, dlt)
     if basic_offset is None or basic_offset + BASIC_HEADER_LEN > len(data):
@@ -208,19 +230,58 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
     geonet_version = (basic >> 4) & 0x0F
     next_header = basic & 0x0F
 
+    if geonet_version != GEONET_VERSION:
+        return None
+
     if next_header == NEXT_HEADER_BASIC_SECURED:
-        return GeoNetworkingFrame(
-            geonet_offset=basic_offset,
-            basic_header_offset=basic_offset,
-            header_type=-1,
-            geonet_version=geonet_version,
-            was_secured=True,
-        )
+        return _locate_secured(data, basic_offset, geonet_version)
     if next_header != NEXT_HEADER_BASIC_COMMON:
         return None
 
-    common_offset = basic_offset + BASIC_HEADER_LEN
-    if common_offset + COMMON_HEADER_LEN > len(data):
+    return _locate_headers(
+        data, basic_offset, basic_offset + BASIC_HEADER_LEN, len(data), geonet_version
+    )
+
+
+def _locate_secured(data: bytes, basic_offset: int, version: int) -> GeoNetworkingFrame:
+    opaque = GeoNetworkingFrame(
+        geonet_offset=basic_offset,
+        basic_header_offset=basic_offset,
+        header_type=-1,
+        geonet_version=version,
+        was_secured=True,
+    )
+    envelope_start = basic_offset + BASIC_HEADER_LEN
+    unwrapped = unwrap_secured(data[envelope_start:])
+    if unwrapped is None:
+        return opaque
+
+    opaque.secured_kind = unwrapped.kind
+    if unwrapped.payload_start is None or unwrapped.payload_end is None:
+        return opaque  # encrypted: nothing readable without a key
+
+    inner = _locate_headers(
+        data,
+        basic_offset,
+        envelope_start + unwrapped.payload_start,
+        envelope_start + unwrapped.payload_end,
+        version,
+        secured_kind=unwrapped.kind,
+    )
+    return inner if inner is not None else opaque
+
+
+def _locate_headers(
+    data: bytes,
+    basic_offset: int,
+    common_offset: int,
+    end: int,
+    version: int,
+    secured_kind: str | None = None,
+) -> GeoNetworkingFrame | None:
+    """Parses Common Header, extended header and BTP between ``common_offset`` and ``end``."""
+    was_secured = secured_kind is not None
+    if common_offset + COMMON_HEADER_LEN > end:
         return None
 
     next_header_common = (data[common_offset] >> 4) & 0x0F
@@ -230,9 +291,8 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
     if extended_len is None:
         return None
 
-    extended_offset = common_offset + COMMON_HEADER_LEN
-    btp_offset = extended_offset + extended_len
-    if btp_offset > len(data):
+    btp_offset = common_offset + COMMON_HEADER_LEN + extended_len
+    if btp_offset > end:
         return None
 
     if next_header_common not in (NEXT_HEADER_COMMON_BTP_A, NEXT_HEADER_COMMON_BTP_B):
@@ -240,23 +300,30 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
             geonet_offset=basic_offset,
             basic_header_offset=basic_offset,
             header_type=header_type,
-            geonet_version=geonet_version,
-            was_secured=False,
+            geonet_version=version,
+            was_secured=was_secured,
+            secured_kind=secured_kind,
         )
 
-    if btp_offset + BTP_HEADER_LEN > len(data):
+    if btp_offset + BTP_HEADER_LEN > end:
         return None
 
     btp_port = int.from_bytes(data[btp_offset : btp_offset + 2], "big")
+    declared_pl = int.from_bytes(data[common_offset + 4 : common_offset + 6], "big")
+    payload_end = end
+    if BTP_HEADER_LEN <= declared_pl and btp_offset + declared_pl <= end:
+        payload_end = btp_offset + declared_pl
     return GeoNetworkingFrame(
         geonet_offset=basic_offset,
         basic_header_offset=basic_offset,
         header_type=header_type,
-        geonet_version=geonet_version,
-        was_secured=False,
+        geonet_version=version,
+        was_secured=was_secured,
+        secured_kind=secured_kind,
         btp_offset=btp_offset,
         btp_port=btp_port,
         payload_offset=btp_offset + BTP_HEADER_LEN,
+        payload_end=payload_end,
     )
 
 

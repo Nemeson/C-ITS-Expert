@@ -11,7 +11,7 @@ Field semantics follow ISO TS 19091 / ETSI-ITS-DSRC:
   ``egressApproach`` carries the approach number; a lane with neither is a
   crosswalk/bike/sidewalk lane whose role is reported as ``unknown``.
 * ``nodeList`` is a CHOICE. The ``nodes`` alternative is a list of nodes whose
-  ``delta`` is either ``node-XY*`` (offsets in **10 cm** units, x = lat, y = lon)
+  ``delta`` is either ``node-XY*`` (offsets in **1 cm** units, x = East/lon, y = North/lat)
   or ``node-LatLon`` (absolute 1e-7 degrees). Offsets are relative to the lane's
   own reference point, inherited from the enclosing intersection when the lane
   does not carry one.
@@ -22,8 +22,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
-# 10 cm per node-XY offset unit (SAE J2735 / ISO TS 19091 NodeOffsetPointXY).
-_XY_UNIT_METERS = 0.1
+# 1 cm per node-XY offset unit (SAE J2735 / ISO TS 19091 NodeOffsetPointXY, zoom 1:1).
+_XY_UNIT_METERS = 0.01
 _LL_SCALE = 10_000_000.0
 _METERS_PER_DEGREE = 111_320.0
 
@@ -96,10 +96,10 @@ def _node_to_lonlat(node: dict[str, Any], ref: dict[str, Any]) -> dict[str, floa
     if x is None or y is None:
         return None
 
-    # x is the latitudinal offset, y the longitudinal one, both in 10 cm units.
-    lat_deg = ref_lat / _LL_SCALE + (x * _XY_UNIT_METERS) / _METERS_PER_DEGREE
+    # X is the offset to the East (longitude), Y to the North (latitude), in 1 cm units.
+    lat_deg = ref_lat / _LL_SCALE + (y * _XY_UNIT_METERS) / _METERS_PER_DEGREE
     cos_lat = max(0.01, math.cos(math.radians(ref_lat / _LL_SCALE)))
-    lon_deg = ref_lon / _LL_SCALE + (y * _XY_UNIT_METERS) / (_METERS_PER_DEGREE * cos_lat)
+    lon_deg = ref_lon / _LL_SCALE + (x * _XY_UNIT_METERS) / (_METERS_PER_DEGREE * cos_lat)
     return {"lat": lat_deg, "lon": lon_deg, "elevation": 0.0}
 
 

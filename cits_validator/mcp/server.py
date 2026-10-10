@@ -2,9 +2,19 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 from cits_validator import __version__
+from cits_validator.mcp.config import Settings
+from cits_validator.mcp.profiles import get_profile
+from cits_validator.mcp.resources import RESOURCES, read_resource
+from cits_validator.mcp.security import (
+    cap_output,
+    dump_json,
+    ensure_path_allowed,
+    require_token_if_remote,
+)
 from cits_validator.mcp.tools import (
     cits_audit_code,
     cits_check_mapem,
@@ -14,8 +24,24 @@ from cits_validator.mcp.tools import (
     cits_export_kml,
     cits_inspect_hex,
     cits_parse_lisa,
+    cits_selftest,
     cits_validate_pcap,
 )
+from cits_validator.mcp.validation import InvalidParams, validate_arguments
+
+# Tools that produce side-effects (file generation) rather than pure reads.
+_WRITE_TOOLS = frozenset({"cits_export_kml"})
+
+# Upper bound for one JSON-RPC request line on stdin (bytes of text read per line).
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+
+# Errors a tool raises for bad input; their message is meant for the caller.
+_CLIENT_ERRORS = (ValueError, PermissionError, FileNotFoundError)
+
+
+def _error(req_id: Any, code: int, message: str) -> dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
 
 
 class McpServer:
@@ -221,9 +247,19 @@ class McpServer:
                 "required": ["lanes_json"],
             },
         },
+        {
+            "name": "cits_selftest",
+            "description": (
+                "Liveness/health probe. Returns the active capability profile and the "
+                "server version so a supervisor or agent can confirm the server is up."
+            ),
+            "inputSchema": {"type": "object", "properties": {}},
+        },
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
+        self.settings = settings or Settings.from_env()
+        self.profile = get_profile(self.settings.profile)
         self.tool_handlers = {
             "cits_audit_code": lambda args: cits_audit_code(
                 args["code"],
@@ -236,7 +272,9 @@ class McpServer:
             "cits_check_mapem": lambda args: cits_check_mapem(
                 args["lanes_geojson"], args.get("max_chord_meters")
             ),
-            "cits_validate_pcap": lambda args: cits_validate_pcap(args["file_path"]),
+            "cits_validate_pcap": lambda args: cits_validate_pcap(
+                args["file_path"], self.settings.max_file_bytes, self.settings.max_packets
+            ),
             "cits_parse_lisa": lambda args: cits_parse_lisa(args["xml_content"]),
             "cits_compute_glosa": lambda args: cits_compute_glosa(
                 distance_m=float(args["distance_m"]),
@@ -261,12 +299,15 @@ class McpServer:
                 args.get("release", "r1"),
                 args.get("lisa_xml"),
             ),
+            "cits_selftest": lambda args: cits_selftest(self.settings.profile),
         }
 
     def handle_request(self, req: dict[str, Any]) -> dict[str, Any]:
         req_id = req.get("id")
         method = req.get("method")
         params = req.get("params", {})
+        if not isinstance(params, dict):
+            return _error(req_id, -32602, "params must be an object")
 
         if method == "initialize":
             return {
@@ -278,31 +319,59 @@ class McpServer:
                         "name": self.SERVER_NAME,
                         "version": self.SERVER_VERSION,
                     },
-                    "capabilities": {"tools": {}},
+                    "capabilities": {"tools": {}, "resources": {}},
                 },
             }
 
         elif method == "tools/list":
+            all_names: list[str] = [str(t["name"]) for t in self.TOOL_DEFINITIONS]
+            allowed = set(self.profile.filter_tools(all_names))
+            exposed = [
+                {**t, "annotations": {"readOnlyHint": t["name"] not in _WRITE_TOOLS}}
+                for t in self.TOOL_DEFINITIONS
+                if t["name"] in allowed
+            ]
             return {
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {"tools": self.TOOL_DEFINITIONS},
+                "result": {"tools": exposed},
             }
 
         elif method == "tools/call":
             tool_name = params.get("name")
             tool_args = params.get("arguments", {})
 
-            handler = self.tool_handlers.get(tool_name)
-            if not handler:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "error": {"code": -32601, "message": f"Tool not found: {tool_name}"},
-                }
+            handler = self.tool_handlers.get(str(tool_name))
+            exposed_names = self.profile.filter_tools([str(t["name"]) for t in self.TOOL_DEFINITIONS])
+            if not handler or tool_name not in exposed_names:
+                return _error(req_id, -32601, f"Tool not found: {tool_name}")
+
+            definition = next(t for t in self.TOOL_DEFINITIONS if t["name"] == tool_name)
+            schema: dict[str, Any] = definition["inputSchema"]  # type: ignore[assignment]
+            try:
+                validate_arguments(schema, tool_args)
+            except InvalidParams as e:
+                return _error(req_id, -32602, str(e))
+
+            if "file_path" in tool_args:
+                # Check and use the same resolved path, so a symlink swapped in
+                # after the check cannot redirect the handler outside the roots.
+                try:
+                    resolved = ensure_path_allowed(Path(tool_args["file_path"]), self.settings.roots)
+                    tool_args = {**tool_args, "file_path": str(resolved)}
+                except PermissionError as e:
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "content": [{"type": "text", "text": str(e)}],
+                            "isError": True,
+                        },
+                    }
 
             try:
                 res = handler(tool_args)
+                capped = cap_output(res, self.settings.max_output_bytes)
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
@@ -310,17 +379,39 @@ class McpServer:
                         "content": [
                             {
                                 "type": "text",
-                                "text": json.dumps(res, indent=2),
+                                "text": dump_json(capped),
                             }
                         ]
                     },
                 }
+            except _CLIENT_ERRORS as e:
+                return self._tool_error(req_id, str(e))
             except Exception as e:
+                # Unexpected failure: do not echo internals (paths, state) to the client.
+                return self._tool_error(req_id, f"Internal error: {type(e).__name__}")
+
+        elif method == "resources/list":
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"resources": RESOURCES},
+            }
+
+        elif method == "resources/read":
+            uri = params.get("uri", "")
+            try:
+                text = read_resource(uri)
+            except ValueError as e:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "error": {"code": -32000, "message": str(e)},
+                    "error": {"code": -32002, "message": str(e)},
                 }
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"contents": [{"uri": uri, "mimeType": "application/json", "text": text}]},
+            }
 
         elif method == "notifications/initialized":
             return {}
@@ -333,25 +424,48 @@ class McpServer:
 
     def run_stdio(self) -> None:
         """Runs the STDIO JSON-RPC line loop."""
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
+        require_token_if_remote(self.settings.bind_host, self.settings.token)
+        while True:
+            raw = sys.stdin.readline(MAX_REQUEST_BYTES + 1)
+            if not raw:
+                break
+            if len(raw) > MAX_REQUEST_BYTES and not raw.endswith("\n"):
+                while raw and not raw.endswith("\n"):  # drain the rest of the line
+                    raw = sys.stdin.readline(MAX_REQUEST_BYTES + 1)
+                self._write(_error(None, -32600, "Request too large"))
                 continue
 
-            try:
-                req = json.loads(line)
-                resp = self.handle_request(req)
-                if resp:  # Notifications don't require responses
-                    sys.stdout.write(json.dumps(resp) + "\n")
-                    sys.stdout.flush()
-            except Exception as e:
-                err_resp = {
-                    "jsonrpc": "2.0",
-                    "id": None,
-                    "error": {"code": -32700, "message": f"Parse error: {e}"},
-                }
-                sys.stdout.write(json.dumps(err_resp) + "\n")
-                sys.stdout.flush()
+            line = raw.strip()
+            if not line:
+                continue
+            resp = self._process_line(line)
+            if resp:  # Notifications don't require responses
+                self._write(resp)
+
+    @staticmethod
+    def _tool_error(req_id: Any, text: str) -> dict[str, Any]:
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {"content": [{"type": "text", "text": text}], "isError": True},
+        }
+
+    def _process_line(self, line: str) -> dict[str, Any]:
+        try:
+            req = json.loads(line)
+        except json.JSONDecodeError as e:
+            return _error(None, -32700, f"Parse error: {e}")
+        if not isinstance(req, dict):
+            return _error(None, -32600, "Invalid Request: expected a JSON object")
+        try:
+            return self.handle_request(req)
+        except Exception as e:
+            return _error(req.get("id"), -32603, f"Internal error: {type(e).__name__}")
+
+    @staticmethod
+    def _write(resp: dict[str, Any]) -> None:
+        sys.stdout.write(json.dumps(resp) + "\n")
+        sys.stdout.flush()
 
 
 def main() -> None:

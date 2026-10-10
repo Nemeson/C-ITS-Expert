@@ -8,12 +8,21 @@ a PDU was validated against — which is the point of validating at all.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
 
 STANDARDS_DIR = Path(__file__).resolve().parent / "standards"
 MANIFEST_PATH = STANDARDS_DIR / "manifest.json"
+
+
+def module_digest(data: bytes) -> str:
+    """SHA-256 of a module with line endings normalised to LF.
+
+    Git checks the same text out as CRLF on Windows and LF elsewhere; the digest must not
+    depend on that, or a correct module would fail verification on another platform."""
+    return hashlib.sha256(data.replace(bytes([13, 10]), bytes([10]))).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -25,6 +34,7 @@ class ModuleProvenance:
     scope: str
     source_url: str
     source_path: str = ""
+    sha256: str = ""
 
     @property
     def path(self) -> Path:

@@ -199,12 +199,12 @@ cits-lint --pdu 0204000013900000181c81000000001043000320 --msg-type SPATEM
 
 | ID | Checks |
 | :--- | :--- |
-| `R01` | Radiotap length, 802.11 QoS/WDS MAC header, LLC/SNAP `0x8947`, GeoNetworking framing, BTP port. IEEE 1609.2 secured frames are counted as `secured`, not mis-decoded. |
+| `R01` | Radiotap length, 802.11 QoS/WDS MAC header, LLC/SNAP `0x8947`, GeoNetworking framing, BTP port. IEEE 1609.2 secured frames are counted as `secured`; for signed messages the BTP port is read from the envelope (encrypted ones stay opaque). Unknown BTP ports are reported once. |
 | `R02` | Anti-hallucination source audit: synthetic GNSS drift, modulo signal groups, 90 s static cycles. Strings/comments are not treated as code; `# cits-lint: allow` silences a line. |
 | `R03` | Multi-fragment MAPEM accumulation and stopline chord bounds (configurable via `--max-chord`). |
 | `R04` | SREM/SSEM 4-tuple session tracking and unclosed priority requests. |
 | `R05` | ESP32-C5 `ITS5`/`ITS6` framing, RSSI sentinel, host time anchoring. |
-| `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). Decodes CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM and VAM. |
+| `R06` | ASN.1/UPER conformance against the vendored ETSI/ISO modules (needs the `[asn1]` extra). Decodes CAM, DENM, MAPEM, SPATEM, SREM, SSEM, CPM and VAM, including the payload of IEEE 1609.2 *signed* messages (signatures are not verified). Also flags trailing bytes, `messageID`/port mismatches and the sampling cutoff. |
 
 ### BTP destination ports (ETSI TS 103 248, Table 1)
 
@@ -254,12 +254,48 @@ Exposed Agent Tools:
 * `cits_audit_code(code, language, rules)`: Registry-backed scanner detecting `sin(t)` coordinate drift, modulo phase arithmetic, and 90-second static cycle loops (same rule set as `cits-lint --rules`).
 * `cits_inspect_hex(hex_payload, dlt)`: Wire dissector verifying Radiotap offsets, 802.11 QoS headers, LLC/SNAP `0x8947`, GeoNetworking framing and the BTP port.
 * `cits_check_mapem(lanes_geojson, max_chord_meters)`: Checks stopline Node-0 orientations and flags diagonal overlong chords.
-* `cits_validate_pcap(file_path)`: Streams and audits full PCAP/PCAPNG capture files.
+* `cits_validate_pcap(file_path)`: Streams and audits full PCAP/PCAPNG capture files (bounded by `CITS_MCP_MAX_FILE_BYTES` and `CITS_MCP_MAX_PACKETS`).
 * `cits_parse_lisa(xml_content)`: Ingests LISA `LV.XML` controller files and classifies signal groups (e.g. `K1` vehicle, `F5` pedestrian, `R17` bicycle).
 * `cits_compute_glosa(distance_m, speed_kmh, phase_state, time_to_phase_end_s, ...)`: Real-time Green Light Optimal Speed Advisory trajectory calculation engine.
 * `cits_export_kml(lanes_json, lisa_xml, intersection_name)`: Generates pure-Python 3D OGC KML 2.2 documents with extruded lane ribbons and stopline markers.
 * `cits_decode_pdu(hex_payload, msg_type, release)`: Decodes a CAM/DENM/MAPEM/SPATEM/SREM/SSEM PDU against the vendored ETSI/ISO modules and returns the fields plus the standards used.
 * `cits_decode_mapem_to_geojson(hex_payload, release, lisa_xml)`: Decodes a MAPEM PDU straight to GeoJSON, reporting `lane_count` and `data_status` so an empty result is visible.
+* `cits_selftest()`: Liveness/health probe returning the active profile and version.
+
+Read-only resources: `cits://rules` (machine-readable rule catalog) and `cits://version`.
+
+#### Capability profiles
+
+The server exposes a filtered tool surface per role, selected with `CITS_MCP_PROFILE`:
+
+| Profile | Tools | Purpose |
+| :--- | :--- | :--- |
+| `host` (default) | all tools | Development host / coding agents. |
+| `device` | read-only tools only (`inspect_hex`, `validate_pcap`, `check_mapem`, `compute_glosa`, `parse_lisa`, `selftest`) | On-RSU / edge deployment. |
+| `ci` | `validate_pcap`, `audit_code`, `decode_pdu` | Pipeline gate. |
+
+#### Security & limits (environment)
+
+- `CITS_MCP_BIND_HOST` — bind address (default `127.0.0.1`). A non-loopback bind **requires** `CITS_MCP_TOKEN` or the server refuses to start.
+- `CITS_MCP_TOKEN` — shared token for remote binds.
+- `CITS_MCP_ROOTS` — path allowlist separated by the platform path separator (`;` on Windows, `:` on POSIX); **every** profile refuses file paths outside it (default: the working directory). A filesystem root such as `/` is refused.
+- `CITS_MCP_MAX_OUTPUT_BYTES` — output cap (default `262144`, minimum `1024`). The cap applies to the exact JSON that is sent: lists are truncated at a record boundary and marked `truncated` with a `total`; data that cannot be truncated becomes `{"error": "output too large", ...}`.
+- `CITS_MCP_MAX_FILE_BYTES` — largest capture file `cits_validate_pcap` opens (default 256 MiB).
+- `CITS_MCP_MAX_PACKETS` — packets inspected per scan (default 2,000,000); the scan stops with a warning.
+- Tool arguments are validated against each tool's `inputSchema` (`-32602` on violation), request lines are limited to 8 MiB, and unexpected internal errors are reported as `Internal error: <Type>` without details.
+- XML inputs (`xml_content`, `lisa_xml`) are parsed as text only; DTD/entity declarations are rejected.
+
+#### Embedded deployment (`cits-edge`)
+
+For constrained Linux (musl/static, low RAM/Flash), build a device-profile zipapp with
+zero third-party dependencies and run it under systemd:
+
+```bash
+python scripts/build_edge_zipapp.py --output cits-edge.pyz   # also writes cits-edge.pyz.sha256
+sha256sum -c cits-edge.pyz.sha256
+python cits-edge.pyz selftest
+```
+The build is reproducible (identical sources give an identical archive) and the zipapp honours the `CITS_MCP_*` environment. A hardened unit template (`DynamicUser`, empty capability set, syscall/namespace restrictions, memory caps) is at [`packaging/cits-edge.service`](packaging/cits-edge.service); set `CITS_MCP_ROOTS` to the directory holding your captures.
 
 ---
 
@@ -309,7 +345,7 @@ ruff check .
 mypy cits_validator
 ```
 
-### Verified Test Matrix (225 Tests, 100% Green)
+### Verified Test Matrix (266 Tests, 100% Green)
 - `tests/test_skill_spec.py`: Validates YAML frontmatter, token budget (< 450 words in `SKILL.md`), and markdown link integrity.
 - `tests/test_dissection_reference.py`: Verifies DLT 127 Radiotap stripping, LLC/SNAP `0x8947` matching, and nanosecond PCAP detection on real byte sequences.
 - `tests/test_mapem_topology.py`: Verifies additive multi-fragment MAPEM aggregation across `layerID` and Node 0 stopline connection distance.
@@ -318,7 +354,7 @@ mypy cits_validator
 - `tests/lisa/`: Tests LISA `LV.XML` supply compiler, signal group object mapping, and vehicle/pedestrian/cyclist classification heuristics.
 - `tests/cli/`: End-to-end CLI tests for `cits-lint` and `cits-export` (stdout, file output, LISA enrichment, `--pdu`).
 - `tests/asn1/`: ASN.1 conformance against byte-exact reference vectors from an independent encoder **and real field MAPEM captures** across both release baselines; the vendored-module provenance, the failure modes (truncated/garbage PDU never yields a partial decode) and the PDU → lane-geometry adapter.
-- `tests/validator/`: Conformance rules R01–R06 including their error branches, live STDIO MCP server JSON-RPC dispatch, PCAPNG block parsing, and subprocess E2E validations.
+- `tests/validator/`: Conformance rules R01–R06 including their error branches, live STDIO MCP server JSON-RPC dispatch, PCAPNG block parsing, profile filtering, security guards (`tests/validator/test_mcp_security.py`), resource reads, the `cits-edge` zipapp build/smoke test (`tests/validator/test_edge_zipapp.py`), and subprocess E2E validations.
 
 ### Standards corpus
 The ASN.1 modules the conformance core compiles are vendored under

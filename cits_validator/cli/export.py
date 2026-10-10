@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from cits_validator.geo.geojson_builder import export_mapem_geojson
 from cits_validator.geo.kml_builder import export_mapem_kml
@@ -58,11 +59,22 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         default="C-ITS Intersection",
         help="Intersection name for KML document title (default: 'C-ITS Intersection')",
     )
+    parser.add_argument(
+        "--rules-json",
+        action="store_true",
+        help="Emit the machine-readable rule catalog as JSON and exit",
+    )
 
     try:
         args = parser.parse_args(argv)
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else 0
+
+    if args.rules_json:
+        from cits_validator.rules.export import export_rule_catalog
+
+        print(json.dumps(export_rule_catalog(), indent=2))
+        return 0
 
     if not args.mapem and not args.pdu:
         print("Error: one of --mapem or --pdu is required.", file=sys.stderr)

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import BinaryIO, Iterator
+from typing import BinaryIO, NamedTuple
 
 # Magic byte prefixes of a PCAPNG Section Header Block (SHB block type 0x0A0D0D0A).
 PCAPNG_MAGIC = b"\x0a\x0d\x0d\x0a"
@@ -14,6 +15,14 @@ PCAPNG_BT_SPB = 0x00000003
 PCAPNG_BT_PB = 0x00000002
 # Blocks whose body is a captured record; anything else is skipped generically.
 PCAPNG_RECORD_BLOCKS = {PCAPNG_BT_EPB, PCAPNG_BT_SPB, PCAPNG_BT_PB}
+
+# Length fields come from the (untrusted) file; cap them so a forged header cannot
+# make a single read() allocate gigabytes.
+MAX_RECORD_BYTES = 262_144  # classic-pcap caplen; also the usual maximum snaplen
+MAX_BLOCK_BYTES = 1 << 20  # any PCAPNG block, including the Section Header Block
+
+# PCAPNG byte-order magic (0x1A2B3C4D) as written in each byte order.
+_BOM_TO_FMT = {bytes([0x4D, 0x3C, 0x2B, 0x1A]): "<", bytes([0x1A, 0x2B, 0x3C, 0x4D]): ">"}
 
 
 @dataclass
@@ -48,7 +57,7 @@ class PacketRecord:
 class _PcapngInterface:
     linktype: int
     snaplen: int = 0
-    tsresol: int = 6  # 10^-6 seconds unless an if_tsresol option says otherwise
+    ticks_per_second: float = 1_000_000.0  # unless an if_tsresol option says otherwise
 
 
 class PcapStreamingIterator:
@@ -74,7 +83,8 @@ class PcapStreamingIterator:
         self.is_pcapng: bool = False
         self.interfaces: list[_PcapngInterface] = []
         self.unsupported_blocks: dict[int, int] = {}
-        self._interface_count: int = 0
+        self._seen_dlts: set[int] = set()
+        self.unknown_interface_records: int = 0
 
     # -- header ----------------------------------------------------------------
     def read_header(self, stream: BinaryIO) -> PcapHeaderInfo:
@@ -127,17 +137,12 @@ class PcapStreamingIterator:
         length_bytes = stream.read(4)
         if len(length_bytes) < 4:
             raise ValueError("Truncated PCAPNG Section Header Block (no block length)")
-        block_len = struct.unpack("<I", length_bytes)[0]
-        if block_len < 28 or block_len % 4 != 0:
-            raise ValueError(f"Invalid PCAPNG Section Header block length: {block_len}")
-
-        rest = stream.read(block_len - 8)
-        if len(rest) < block_len - 8:
-            raise ValueError("Truncated PCAPNG Section Header Block body")
-
-        bom = rest[0:4]
+        bom = stream.read(4)
+        if len(bom) < 4:
+            raise ValueError("Truncated PCAPNG Section Header Block (no byte-order magic)")
         # The PCAPNG byte-order magic is 0x1A2B3C4D, emitted in the file's own
         # byte order: 1A 2B 3C 4D means big-endian, 4D 3C 2B 1A little-endian.
+        # It must be read before the block length, which uses that same order.
         if bom == b"\x4d\x3c\x2b\x1a":
             byte_order = "little"
         elif bom == b"\x1a\x2b\x3c\x4d":
@@ -146,6 +151,14 @@ class PcapStreamingIterator:
             raise ValueError(f"Invalid PCAPNG byte-order magic: {bom.hex()}")
 
         fmt = "<" if byte_order == "little" else ">"
+        block_len = struct.unpack(f"{fmt}I", length_bytes)[0]
+        if block_len < 28 or block_len % 4 != 0 or block_len > MAX_BLOCK_BYTES:
+            raise ValueError(f"Invalid PCAPNG Section Header block length: {block_len}")
+
+        rest = bom + stream.read(block_len - 12)
+        if len(rest) < block_len - 8:
+            raise ValueError("Truncated PCAPNG Section Header Block body")
+
         major, minor = struct.unpack(f"{fmt}HH", rest[4:8])
 
         self.interfaces = []
@@ -169,6 +182,11 @@ class PcapStreamingIterator:
         self.truncated_eof = False
 
         if isinstance(stream_or_path, (str, Path)):
+            # A fresh file starts at its global header; drop state from any earlier pass.
+            self.header_info = None
+            self.interfaces = []
+            self._seen_dlts = set()
+            self.unknown_interface_records = 0
             with open(stream_or_path, "rb") as f:
                 yield from self._iter_stream(f)
         else:
@@ -178,16 +196,20 @@ class PcapStreamingIterator:
         if self.header_info is None:
             self.read_header(stream)
 
-        assert self.header_info is not None
-        if self.header_info.is_pcapng:
+        if self._header().is_pcapng:
             yield from self._iter_pcapng(stream)
         else:
             yield from self._iter_classic(stream)
 
+    def _header(self) -> PcapHeaderInfo:
+        if self.header_info is None:
+            raise ValueError("capture header has not been read")
+        return self.header_info
+
     def _iter_classic(self, stream: BinaryIO) -> Iterator[PacketRecord]:
-        assert self.header_info is not None
-        fmt_char = ">" if self.header_info.byte_order == "big" else "<"
-        scale = float(self.header_info.timestamp_scale)
+        header = self._header()
+        fmt_char = ">" if header.byte_order == "big" else "<"
+        scale = float(header.timestamp_scale)
 
         packet_index = 0
         while True:
@@ -200,6 +222,9 @@ class PcapStreamingIterator:
                 break
 
             ts_sec, ts_sub, caplen, origlen = struct.unpack(f"{fmt_char}IIII", rec_hdr)
+            if caplen > MAX_RECORD_BYTES:
+                self.truncated_eof = True  # corrupt or hostile length; stream is unusable
+                break
             data = stream.read(caplen)
 
             if len(data) < caplen:
@@ -215,69 +240,108 @@ class PcapStreamingIterator:
                 data=data,
             )
 
+    @property
+    def dlts(self) -> list[int]:
+        """All link types declared by the file's Interface Description Blocks, sorted."""
+        return sorted(self._seen_dlts)
+
+    def _read_pcapng_block(self, stream: BinaryIO, fmt: str) -> tuple[int, bytes, str] | None:
+        """Reads one block; returns ``(type, body, fmt)`` or None at EOF / on corruption.
+
+        A Section Header Block declares its own byte order, and its length field is
+        written in that order, so the BOM is read before the length is decoded.
+        """
+        head = stream.read(8)
+        if not head:
+            return None
+        if len(head) < 8:
+            self.truncated_eof = True
+            return None
+
+        prefix = b""
+        if head[:4] == PCAPNG_MAGIC:
+            prefix = stream.read(4)
+            section_fmt = _BOM_TO_FMT.get(prefix)
+            if section_fmt is None:
+                self.truncated_eof = True
+                return None
+            fmt = section_fmt
+            block_type = PCAPNG_BT_SHB
+            block_len = struct.unpack(f"{fmt}I", head[4:8])[0]
+        else:
+            block_type, block_len = struct.unpack(f"{fmt}II", head)
+
+        body_len = block_len - 12 - len(prefix)
+        if block_len < 12 or block_len % 4 != 0 or block_len > MAX_BLOCK_BYTES or body_len < 0:
+            self.truncated_eof = True
+            return None
+
+        body = prefix + stream.read(body_len)
+        trailer = stream.read(4)
+        if (
+            len(body) < body_len + len(prefix)
+            or len(trailer) < 4
+            or struct.unpack(f"{fmt}I", trailer)[0] != block_len
+        ):
+            self.truncated_eof = True
+            return None
+        return block_type, body, fmt
+
     def _iter_pcapng(self, stream: BinaryIO) -> Iterator[PacketRecord]:
-        assert self.header_info is not None
-        fmt = "<" if self.header_info.byte_order == "little" else ">"
+        header = self._header()
+        fmt = "<" if header.byte_order == "little" else ">"
         packet_index = 0
-        section_dlts: set[int] = set()
+        dlt_fixed = False
 
         while True:
-            head = stream.read(8)
-            if not head:
+            block = self._read_pcapng_block(stream, fmt)
+            if block is None:
                 break
-            if len(head) < 8:
-                self.truncated_eof = True
-                break
-
-            block_type, block_len = struct.unpack(f"{fmt}II", head)
-            if block_len < 12 or block_len % 4 != 0:
-                self.truncated_eof = True
-                break
-
-            body_len = block_len - 12
-            body = stream.read(body_len)
-            if len(body) < body_len:
-                self.truncated_eof = True
-                break
-            stream.read(4)  # trailing block total length
+            block_type, body, fmt = block
 
             if block_type == PCAPNG_BT_SHB:
                 # A new section may re-declare its byte order; interfaces reset.
                 self.interfaces = []
+                header.byte_order = "little" if fmt == "<" else "big"
                 continue
 
             if block_type == PCAPNG_BT_IDB:
                 iface = _PcapngInterface(linktype=127)
                 if len(body) >= 8:
                     iface.linktype, _r, iface.snaplen = struct.unpack(f"{fmt}HHI", body[:8])
-                    iface.tsresol = _parse_tsresol_option(body[8:], fmt)
+                    iface.ticks_per_second = _parse_ticks_per_second(body[8:], fmt)
                 self.interfaces.append(iface)
-                self._interface_count += 1
-                if not section_dlts:
+                self._seen_dlts.add(iface.linktype)
+                if not dlt_fixed:
                     # The section header carries no link type; the first interface
-                    # definition supplies the effective DLT for the whole section.
-                    self.header_info.dlt = iface.linktype
-                    self.header_info.is_nanosecond = iface.tsresol == 9
-                    self.header_info.timestamp_scale = 10**iface.tsresol
+                    # definition of the file supplies the effective DLT.
+                    dlt_fixed = True
+                    header.dlt = iface.linktype
+                    header.is_nanosecond = iface.ticks_per_second == 1e9
+                    header.timestamp_scale = int(iface.ticks_per_second)
                 continue
 
             if block_type in PCAPNG_RECORD_BLOCKS:
-                data, ts_ticks, iface_id = _parse_record_block(block_type, body, fmt)
-                if data is None:
+                parsed = _parse_record_block(block_type, body, fmt)
+                if parsed is None:
                     continue
-                iface = (
-                    self.interfaces[iface_id]
-                    if 0 <= iface_id < len(self.interfaces)
-                    else (_PcapngInterface(linktype=self.header_info.dlt))
-                )
-                section_dlts.add(iface.linktype)
+                if parsed.truncated:
+                    self.truncated_eof = True
+                    break
+                iface_id = parsed.interface_id
+                if 0 <= iface_id < len(self.interfaces):
+                    iface = self.interfaces[iface_id]
+                else:
+                    self.unknown_interface_records += 1
+                    iface = _PcapngInterface(linktype=header.dlt)
                 packet_index += 1
+                ticks = parsed.ticks
                 yield PacketRecord(
                     index=packet_index,
-                    timestamp=ts_ticks / (10.0**iface.tsresol) if ts_ticks is not None else 0.0,
-                    caplen=len(data),
-                    wirelen=len(data),
-                    data=data,
+                    timestamp=ticks / iface.ticks_per_second if ticks is not None else 0.0,
+                    caplen=len(parsed.data),
+                    wirelen=parsed.origlen,
+                    data=parsed.data,
                     interface_id=iface_id,
                     dlt=iface.linktype,
                 )
@@ -285,10 +349,9 @@ class PcapStreamingIterator:
 
             self.unsupported_blocks[block_type] = self.unsupported_blocks.get(block_type, 0) + 1
 
-        if section_dlts:
-            self.header_info.dlt = next(iter(section_dlts))
-
-    def iter_records_batched(self, stream_or_path: BinaryIO | str | Path, batch: int = 256):
+    def iter_records_batched(
+        self, stream_or_path: BinaryIO | str | Path, batch: int = 256
+    ) -> Iterator[list[PacketRecord]]:
         """Yields lists of records, bounding per-record iterator overhead."""
         chunk: list[PacketRecord] = []
         for record in self.iter_records(stream_or_path):
@@ -300,54 +363,54 @@ class PcapStreamingIterator:
             yield chunk
 
 
-def _parse_tsresol_option(options: bytes, fmt: str) -> int:
-    """Extracts the timestamp resolution exponent from IDB option bytes."""
-    tsresol = 6
+def _parse_ticks_per_second(options: bytes, fmt: str) -> float:
+    """Ticks per second from the if_tsresol IDB option (default 10^6)."""
+    ticks = 1_000_000.0
     offset = 0
     while offset + 4 <= len(options):
         code, length = struct.unpack(f"{fmt}HH", options[offset : offset + 4])
         offset += 4
         if offset + length > len(options):
             break
-        value = options[offset : offset + length]
         if code == 9 and length >= 1:  # if_tsresol
-            raw = value[0]
-            if raw & 0x80:
-                # Base-2 exponent form
-                tsresol = max(1, min(12, (raw & 0x7F) * 3 // 10))
-            else:
-                tsresol = max(0, min(12, raw))
+            raw = options[offset]
+            exponent = min(raw & 0x7F, 62)
+            ticks = float(2**exponent) if raw & 0x80 else float(10 ** min(exponent, 18))
         offset += length + ((-length) % 4)
-    return tsresol
+    return ticks
 
 
-def _parse_record_block(
-    block_type: int, body: bytes, fmt: str
-) -> tuple[bytes | None, int | None, int]:
-    """Returns (data, timestamp_ticks, interface_id) for a record-bearing block."""
+class _RecordBlock(NamedTuple):
+    data: bytes
+    ticks: int | None
+    interface_id: int
+    origlen: int
+    truncated: bool = False
+
+
+def _parse_record_block(block_type: int, body: bytes, fmt: str) -> _RecordBlock | None:
+    """Parses a record-bearing block; None when the block is too short to hold a record."""
     if block_type == PCAPNG_BT_EPB:
         if len(body) < 20:
-            return None, None, 0
-        iface_id, ts_high, ts_low, caplen, _origlen = struct.unpack(f"{fmt}IIIII", body[:20])
-        data = body[20 : 20 + caplen]
-        ticks = (ts_high << 32) | ts_low
-        return data, ticks, iface_id
+            return None
+        iface_id, ts_high, ts_low, caplen, origlen = struct.unpack(f"{fmt}IIIII", body[:20])
+        if caplen > len(body) - 20:
+            return _RecordBlock(b"", None, iface_id, origlen, truncated=True)
+        return _RecordBlock(body[20 : 20 + caplen], (ts_high << 32) | ts_low, iface_id, origlen)
 
     if block_type == PCAPNG_BT_SPB:
         if len(body) < 4:
-            return None, None, 0
+            return None
         origlen = struct.unpack(f"{fmt}I", body[:4])[0]
-        data = body[4 : 4 + min(origlen, len(body) - 4)]
-        return data, None, 0
+        return _RecordBlock(body[4 : 4 + min(origlen, len(body) - 4)], None, 0, origlen)
 
     if block_type == PCAPNG_BT_PB:
         if len(body) < 4:
-            return None, None, 0
+            return None
         iface_id = struct.unpack(f"{fmt}H", body[:2])[0]
-        data = body[4:]
-        return data, None, iface_id
+        return _RecordBlock(body[4:], None, iface_id, len(body) - 4)
 
-    return None, None, 0
+    return None
 
 
 @dataclass

@@ -5,8 +5,8 @@ authors:
     given-names: "Kevin"
     email: "vertrieb@seipel.uk"
 title: "C-ITS Expert: The Definitive V2X Engineering Skill Suite & Automated Validator"
-version: 1.1.0
-date-released: 2026-09-27
+version: 1.5.0
+date-released: 2026-10-10
 url: "https://github.com/Nemeson/C-ITS-Expert"
 keywords:
   - "c-its"

@@ -23,7 +23,7 @@ _GEO_FUNC_ALLOWLIST = re.compile(
 
 # Coordinate-ish identifiers. The negative lookbehind keeps compound names such
 # as `dLat`, `deltaLon` or `phiLat` from being mistaken for a coordinate.
-_COORD_TOKEN = r"(?<![A-Za-z0-9_])(?:lat|lon|lng|coord|pos)\w*"
+_COORD_TOKEN = r"(?<![A-Za-z0-9_])(?:lat|lon|lng|coord|pos)\w*"  # noqa: S105 (regex fragment, not a credential)
 
 
 def _strip_line_comment(line: str, language: str) -> str:

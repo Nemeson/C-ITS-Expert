@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from cits_validator.core.models import Violation
 from cits_validator.core.stream import PacketRecord
@@ -22,6 +23,10 @@ class BaseRule:
     def audit_code(self, code: str, language: str) -> list[Violation]:
         """Audits a source code snippet."""
         return []
+
+    def metadata(self) -> dict[str, Any]:
+        """Machine-readable descriptors for codegen and tooling. Empty by default."""
+        return {}
 
 
 class RuleRegistry:

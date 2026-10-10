@@ -1,3 +1,5 @@
+import pytest
+
 from cits_validator.geo.glosa import (
     RECOMMENDATION_ACCELERATE,
     RECOMMENDATION_CRUISE,
@@ -95,3 +97,57 @@ def test_glosa_decelerate_for_standard_spat_without_green_duration():
     assert advisory.speed_max_kmh <= 45.0
     assert advisory.speed_min_kmh == 20.0
 
+
+
+# --- YELLOW is the end of green, not the start of it --------------------------------
+
+
+def test_yellow_never_advises_arriving_at_phase_end_as_if_it_were_green_onset():
+    # time_to_phase_end for YELLOW is when RED begins; arriving then is the unsafe moment.
+    advisory = compute_glosa_advisory(
+        distance_m=200.0,
+        current_speed_kmh=50.0,
+        phase_state="YELLOW",
+        time_to_phase_end_s=3.0,
+        next_green_duration_s=20.0,
+    )
+
+    assert advisory.recommendation == RECOMMENDATION_STOP
+    assert advisory.is_pass_possible is False
+    assert advisory.speed_max_kmh == 0.0
+
+
+def test_red_with_green_shorter_than_safety_buffer_has_no_solution():
+    advisory = compute_glosa_advisory(
+        distance_m=200.0,
+        current_speed_kmh=50.0,
+        phase_state="RED",
+        time_to_phase_end_s=0.1,
+        next_green_duration_s=0.3,
+        safety_buffer_s=0.5,
+    )
+
+    assert advisory.is_pass_possible is False
+    assert advisory.recommendation == RECOMMENDATION_STOP
+
+
+# --- input validation ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["distance_m", "current_speed_kmh", "time_to_phase_end_s", "next_green_duration_s"],
+)
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_non_finite_inputs_are_rejected(field, bad):
+    kwargs = {
+        "distance_m": 100.0,
+        "current_speed_kmh": 50.0,
+        "phase_state": "GREEN",
+        "time_to_phase_end_s": 10.0,
+        "next_green_duration_s": 5.0,
+    }
+    kwargs[field] = bad
+
+    with pytest.raises(ValueError, match=field):
+        compute_glosa_advisory(**kwargs)
