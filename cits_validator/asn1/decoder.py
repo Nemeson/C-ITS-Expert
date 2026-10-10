@@ -13,13 +13,12 @@ Design rules, learned from the failure modes this repository exists to prevent:
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from cits_validator.asn1.provenance import STANDARDS_DIR, load_manifest
+from cits_validator.asn1.provenance import STANDARDS_DIR, load_manifest, module_digest
 
 # Message types this core can decode, keyed by the name callers use.
 MESSAGE_TYPES = ("CAM", "DENM", "MAPEM", "SPATEM", "SREM", "SSEM", "CPM", "VAM")
@@ -216,7 +215,7 @@ def _verify_checksums(paths: list[Path], release: str) -> None:
     expected = {Path(m.file).name: m.sha256 for m in load_manifest() if m.release == release}
     for path in paths:
         want = expected.get(path.name)
-        if want and hashlib.sha256(path.read_bytes()).hexdigest() != want:
+        if want and module_digest(path.read_bytes()) != want:
             raise DecoderUnavailableError(
                 f"Vendored ASN.1 module {path.name} fails its checksum; re-run scripts/vendor_asn1.py."
             )

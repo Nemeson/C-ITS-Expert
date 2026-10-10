@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 
@@ -10,7 +9,12 @@ import pytest
 
 from cits_validator.asn1 import decoder, is_available
 from cits_validator.asn1.decoder import DecoderUnavailableError
-from cits_validator.asn1.provenance import MANIFEST_PATH, STANDARDS_DIR, load_manifest
+from cits_validator.asn1.provenance import (
+    MANIFEST_PATH,
+    STANDARDS_DIR,
+    load_manifest,
+    module_digest,
+)
 
 
 def test_every_vendored_module_matches_its_manifest_checksum():
@@ -19,7 +23,7 @@ def test_every_vendored_module_matches_its_manifest_checksum():
 
     for module in modules:
         assert module.sha256, f"{module.file} has no sha256 in the manifest"
-        actual = hashlib.sha256(module.path.read_bytes()).hexdigest()
+        actual = module_digest(module.path.read_bytes())
         assert actual == module.sha256, module.file
 
 
@@ -56,3 +60,10 @@ def test_manifest_is_read_once_per_message_type(monkeypatch):
     decoder.standards_for("r1", "CAM")
 
     assert len(calls) == 1
+
+
+def test_digest_ignores_line_ending_style():
+    assert module_digest(b"A ::= INTEGER\r\nB ::= NULL\r\n") == module_digest(
+        b"A ::= INTEGER\nB ::= NULL\n"
+    )
+    assert module_digest(b"A ::= INTEGER\n") != module_digest(b"A ::= BOOLEAN\n")

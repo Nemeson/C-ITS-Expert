@@ -264,7 +264,7 @@ def main(argv: list[str]) -> int:
                 "scope": scope,
                 "source_url": url,
                 "source_path": rel,
-                "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(),
+                "sha256": hashlib.sha256(dst.read_bytes().replace(bytes([13, 10]), bytes([10]))).hexdigest(),
             }
         )
         print(f"[OK] {release}/{src.name}")
