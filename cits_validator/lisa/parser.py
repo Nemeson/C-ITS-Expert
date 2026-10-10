@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import codecs
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Sequence
@@ -18,15 +19,15 @@ from cits_validator.lisa.models import (
 
 def classify_signal_group(bezeichnung: str, aspects: Sequence[str]) -> str:
     upper = bezeichnung.strip().upper()
-    aspects_lower = [a.lower() for a in aspects]
+    words = {w for a in aspects for w in re.split(r"[^a-zäöüß]+", a.lower()) if w}
 
-    has_yellow = any("gelb" in a or "yellow" in a for a in aspects_lower)
-    has_green = any("gruen" in a or "grün" in a or "green" in a for a in aspects_lower)
-    has_red = any("rot" in a or "red" in a for a in aspects_lower)
+    has_yellow = bool(words & {"gelb", "yellow", "amber"})
+    has_green = bool(words & {"gruen", "grün", "green"})
+    has_red = bool(words & {"rot", "red"})
 
-    if upper.startswith("F") or upper.startswith("FG") or "FUSS" in upper:
+    if upper.startswith("F") or "FUSS" in upper:
         return CLASS_PEDESTRIAN
-    if upper.startswith("R") or upper.startswith("RAD") or (upper.startswith("B") and "BIKE" in upper):
+    if upper.startswith("R") or (upper.startswith("B") and "BIKE" in upper):
         return CLASS_BICYCLE
     if (
         upper.startswith("B")
@@ -39,7 +40,7 @@ def classify_signal_group(bezeichnung: str, aspects: Sequence[str]) -> str:
         or "OEPNV" in upper
     ):
         return CLASS_TRANSIT
-    if upper.startswith("K") or upper.startswith("KFZ") or upper.startswith("SG"):
+    if upper.startswith(("K", "SG")):
         return CLASS_VEHICLE
 
     # Fallback by aspects: Red + Green without Yellow is typical pedestrian
@@ -102,8 +103,15 @@ def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
     return _catalog_from_root(_parse_untrusted_xml(data))
 
 
-def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
+def _strip_namespaces(root: ET.Element) -> None:
+    """Drops '{uri}' tag prefixes so lookups work for namespaced exports."""
+    for el in root.iter():
+        if isinstance(el.tag, str) and el.tag.startswith("{"):
+            el.tag = el.tag.split("}", 1)[1]
 
+
+def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
+    _strip_namespaces(root)
     catalog = LisaSupplyCatalog()
 
     # Find intersection name
@@ -129,6 +137,7 @@ def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
             try:
                 obj_nr = int(obj_nr_str)
             except ValueError:
+                catalog.warnings.append(f"ignored signal group with invalid ObjNr {obj_nr_str!r}")
                 continue
 
             bezeichnung = (
@@ -159,8 +168,6 @@ def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
                     )
                     if aspect_name:
                         aspects.append(aspect_name.strip())
-            else:
-                aspects = ["Rot", "Gelb", "Gruen"]
 
             classification = classify_signal_group(bezeichnung, aspects)
             group = LisaSignalGroup(
@@ -171,6 +178,11 @@ def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
                 aspects=aspects,
                 is_pedestrian=(classification == CLASS_PEDESTRIAN),
             )
+            if obj_nr in catalog.groups:
+                catalog.warnings.append(f"duplicate ObjNr {obj_nr}: keeping the first definition")
+                continue
             catalog.groups[obj_nr] = group
 
+    if not catalog.groups:
+        catalog.warnings.append("no signal groups found in LISA XML")
     return catalog

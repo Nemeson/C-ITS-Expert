@@ -34,6 +34,8 @@ class LisaSignalGroup:
 class LisaSupplyCatalog:
     intersection_name: str | None = None
     groups: dict[int, LisaSignalGroup] = field(default_factory=dict)
+    # Problems found while parsing (duplicates, unusable entries, empty input).
+    warnings: list[str] = field(default_factory=list)
 
     def by_obj_nr(self, obj_nr: int) -> LisaSignalGroup | None:
         return self.groups.get(obj_nr)
@@ -42,7 +44,10 @@ class LisaSupplyCatalog:
         return len(self.groups)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "intersection_name": self.intersection_name,
             "groups": {k: v.to_dict() for k, v in self.groups.items()},
         }
+        if self.warnings:
+            result["warnings"] = self.warnings
+        return result
