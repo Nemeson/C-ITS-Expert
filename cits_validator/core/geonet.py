@@ -20,6 +20,7 @@ ETHERTYPE_GEONETWORKING = 0x8947
 ETHERTYPE_VLAN_8021Q = 0x8100
 ETHERTYPE_VLAN_8021AD = 0x88A8
 ETHERNET_HEADER_LEN = 14
+GEONET_VERSION = 1
 VLAN_TAG_LEN = 4
 LLC_SNAP_GEONET = b"\xaa\xaa\x03\x00\x00\x00\x89\x47"
 
@@ -91,6 +92,9 @@ class GeoNetworkingFrame:
     btp_offset: int | None = None
     btp_port: int | None = None
     payload_offset: int | None = None
+    # End of the BTP payload: bounded by the Common Header PL when plausible, else the
+    # frame end. Excludes trailing FCS/padding that the capture appended.
+    payload_end: int | None = None
 
 
 def link_layer_offset(data: bytes, dlt: int) -> int | None:
@@ -219,6 +223,9 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
     geonet_version = (basic >> 4) & 0x0F
     next_header = basic & 0x0F
 
+    if geonet_version != GEONET_VERSION:
+        return None
+
     if next_header == NEXT_HEADER_BASIC_SECURED:
         return GeoNetworkingFrame(
             geonet_offset=basic_offset,
@@ -259,6 +266,10 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
         return None
 
     btp_port = int.from_bytes(data[btp_offset : btp_offset + 2], "big")
+    declared_pl = int.from_bytes(data[common_offset + 4 : common_offset + 6], "big")
+    payload_end = len(data)
+    if BTP_HEADER_LEN <= declared_pl and btp_offset + declared_pl <= len(data):
+        payload_end = btp_offset + declared_pl
     return GeoNetworkingFrame(
         geonet_offset=basic_offset,
         basic_header_offset=basic_offset,
@@ -268,6 +279,7 @@ def locate_geonetworking_frame(data: bytes, dlt: int) -> GeoNetworkingFrame | No
         btp_offset=btp_offset,
         btp_port=btp_port,
         payload_offset=btp_offset + BTP_HEADER_LEN,
+        payload_end=payload_end,
     )
 
 
