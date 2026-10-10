@@ -17,6 +17,7 @@ In field deployments, road operators frequently split complex intersections into
 
 ISO TS 19091 encodes lane geometries as cumulative delta vectors (`Node-XY`):
 - `refPoint` is the intersection reference position (WGS84 lat/lon in $10^{-7}$ deg).
+- **Node offsets are in units of 1 cm (zoom 1:1), X = East (longitude) and Y = North (latitude)** — not decimetres, and not x = latitude. Reading them wrongly makes every lane 10x too long and mirrored.
 - **Node 0 is the Reference Node nearest the intersection center (the Stopline for Ingress lanes, or the crosswalk/egress beginning for Egress lanes).**
 - Subsequent Nodes ($1 \dots N$) progress **upstream** (further away from the intersection).
 

@@ -48,10 +48,11 @@ Two limits are stated instead of worked around:
   also differ in field names: Release 1 uses `messageID`/`stationID`, Release 2
   renamed them to `messageId`/`stationId`. Reading one spelling blindly reads
   nothing in the other release.
-- **IEEE 1609.2 secured frames are not decoded.** Their Common Header and BTP sit
-  inside the security envelope, so a plaintext decode would be a fabrication.
-  `R01` reports such frames as `secured` and `R06` counts them as
-  `secured_undecodable`.
+- **IEEE 1609.2 frames: read, not verified.** For `signedData` (and plain `unsecuredData`)
+  the Common Header, BTP and the ITS PDU sit in plaintext inside the envelope, so `R01`
+  reports the BTP port and `R06` decodes the payload (`secured_decoded`). Signatures and
+  certificates are **not** verified. `encryptedData` and envelopes that cannot be parsed
+  stay opaque: `R06` counts them as `secured_undecodable`.
 
 A PDU that fails to decode is reported as an error. A PDU that decodes but
 carries no usable geometry yields an empty result with an explicit

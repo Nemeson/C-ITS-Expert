@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cits-expert"
-version = "1.4.0"
+version = "1.5.0"
 description = "Universal C-ITS & V2X Knowledge, Dissection, and Engineering Skill Suite for AI Agents"
 readme = "README.md"
 authors = [{ name = "Kevin Seipel", email = "vertrieb@seipel.uk" }]

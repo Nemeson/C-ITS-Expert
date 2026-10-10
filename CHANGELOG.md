@@ -10,38 +10,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Capability profiles for the MCP server (`device`, `host`, `ci`).** The server now
-  filters `tools/list` and enforces rights per profile, selected via `CITS_MCP_PROFILE`
-  (default `host`). The `device` profile exposes only read-only tools and is the basis
-  for on-RSU/edge deployment.
-- **Configuration surface (`cits_validator/mcp/config.py`).** `Settings.from_env` reads
-  `CITS_MCP_PROFILE`, `CITS_MCP_BIND_HOST`, `CITS_MCP_TOKEN`, `CITS_MCP_ROOTS` and
-  `CITS_MCP_MAX_OUTPUT_BYTES`.
-- **Security guards (`cits_validator/mcp/security.py`).** A non-loopback bind without
-  `CITS_MCP_TOKEN` refuses to start; a `file_path` outside `CITS_MCP_ROOTS` is refused;
-  oversized results are truncated at a record boundary and marked `truncated` with a
-  `total`, never dropped silently.
-- **Corrected MCP tool-error semantics.** Tool failures now return `result.isError: true`
-  instead of a JSON-RPC `error`, so an agent can tell a tool fault from a protocol fault.
-  Protocol faults (unknown method, parse error) remain JSON-RPC errors.
-- **`cits_selftest` tool and `cits://rules` / `cits://version` resources.** Liveness probe
-  and read-only catalogs an agent can read instead of calling a tool.
-- **`cits-export --rules-json`.** Emits the rule catalog as machine-readable JSON (the
-  contract the Milestone 3 native codegen will consume).
-- **`cits-edge` zipapp (`scripts/build_edge_zipapp.py`).** A device-profile distribution
-  with zero third-party dependencies, plus a `packaging/cits-edge.service` systemd unit.
 
 ### Changed
-- **MCP server construction:** `McpServer(settings=...)` accepts a `Settings` object;
-  `McpServer()` with no arguments keeps working (backward compatible).
 
 ### Fixed
 
-### Documented
+### Security
 
-### Planned (Milestone 3 - v1.5.0: European Day-2 Suite)
-- **ETSI TS 103 097 PKI SecuredData:** certificate-chain verification for the frames rule
-  R01 currently reports as `secured` but does not unwrap.
+---
+
+## [1.5.0] - 2026-10-10
+
+Embedded MCP milestone (Milestone 1) plus a full code-review hardening pass. Behaviour
+changes that can affect existing deployments are marked **(behaviour change)**.
+
+### Added
+- **Capability profiles for the MCP server (`device`, `host`, `ci`).** `tools/list` and
+  `tools/call` are filtered per profile, selected via `CITS_MCP_PROFILE` (default `host`).
+  The `device` profile exposes only read-only tools and is the basis for on-RSU/edge use.
+- **Configuration surface (`cits_validator/mcp/config.py`).** `CITS_MCP_PROFILE`,
+  `CITS_MCP_BIND_HOST`, `CITS_MCP_TOKEN`, `CITS_MCP_ROOTS`, `CITS_MCP_MAX_OUTPUT_BYTES`,
+  `CITS_MCP_MAX_FILE_BYTES` (default 256 MiB) and `CITS_MCP_MAX_PACKETS` (default 2,000,000).
+  Numeric limits are validated; a filesystem root is refused as an allowed root.
+- **Input validation for `tools/call`.** Arguments are checked against each tool's
+  `inputSchema` (`cits_validator/mcp/validation.py`); violations return JSON-RPC `-32602`
+  with the request `id`.
+- **`cits_selftest` tool and `cits://rules` / `cits://version` resources.**
+- **`cits-export --rules-json`.** Machine-readable rule catalog.
+- **`cits-edge` zipapp (`scripts/build_edge_zipapp.py`)** with zero third-party dependencies:
+  reproducible build, `.sha256` checksum next to the `.pyz`, honours the `CITS_MCP_*`
+  environment. `packaging/cits-edge.service` is a hardened systemd unit.
+- **IEEE 1609.2 / ETSI TS 103 097 envelope reading (`cits_validator/core/secured.py`).**
+  Signed and unsecured messages are unwrapped without keys or third-party packages;
+  `R01` reports their BTP port and `R06` decodes their payload (`secured_decoded`).
+  Encrypted messages and unparsable envelopes stay opaque (`secured_undecodable`).
+  **Signatures and certificates are not verified.**
+- **Packet limit.** `scan_file(max_packets=)` / `CITS_MCP_MAX_PACKETS` stop a scan cleanly with
+  a warning instead of running unbounded on hostile captures.
+- **R06 checks:** trailing bytes after a PDU, `messageID` vs BTP-port disagreement, a visible
+  sampling cutoff, and a distinct warning when the decoder itself is unavailable
+  (`DecoderUnavailableError`).
+- **R01:** unknown BTP destination ports are reported once per port (INFO).
+- **LISA parser:** `parse_lisa_xml` (text only, never touches the filesystem),
+  `LisaSupplyCatalog.warnings`.
+- **ASN.1 module integrity:** `sha256` per vendored module in the manifest, verified before
+  compiling.
+- **Seeded malformed-input (fuzz) tests** for the capture readers, link-layer rules, R05, the
+  ASN.1 decoder, the LISA parser and the secured-envelope reader.
+
+### Changed
+- **(behaviour change)** The `CITS_MCP_ROOTS` path sandbox now applies to **every** profile
+  (it was `device` only), and the handler receives the resolved path that was checked.
+  The separator is the platform path separator (`os.pathsep`: `;` on Windows, `:` on POSIX).
+- **(behaviour change)** `cap_output` always honours `max_bytes` on the exact serialisation
+  that is sent. Payloads that cannot be truncated become
+  `{"error": "output too large", "truncated": true, "max_bytes": N}` instead of being
+  returned oversized.
+- **(behaviour change)** Tools hidden by a profile can no longer be called via `tools/call`
+  (`-32601`).
+- **(behaviour change)** Unexpected tool exceptions no longer echo their message to the
+  client (`Internal error: <Type>`); input errors (`ValueError`, `PermissionError`,
+  `FileNotFoundError`) keep their message.
+- **(behaviour change)** GeoJSON/KML export: a lane without a type is `unknown` (it used to be
+  `ingress` and received a stopline marker), nodes without coordinates are dropped (they
+  used to land at 0,0), and single-node lanes are emitted as Points.
+- **(behaviour change)** GLOSA: `YELLOW` never yields a pass window (it ends in red, not
+  green) and a green phase shorter than the safety buffer means no solution. NaN/infinite
+  inputs raise `ValueError`.
+- **(behaviour change)** `cits_parse_lisa`, `cits_export_kml` and
+  `cits_decode_mapem_to_geojson` treat XML arguments as text only. Strings that did not start
+  with `<` used to be opened as file paths.
+- PCAPNG: exact base-2/base-10 timestamp resolution, original wire length kept, per-section
+  byte order, deterministic file DLT plus `PcapStreamingIterator.dlts`, undeclared interfaces
+  counted (`unknown_interface_records`).
+- GeoNetworking: the BTP payload ends at the Common Header `PL` when plausible (trailing
+  FCS/padding excluded); versions other than 1 are not parsed.
+- `release_for_message_id` is now `message_type_for_id` (the old name remains as an alias).
+- CI: actions pinned by commit SHA, `permissions: contents: read`, Windows job, `pip-audit`,
+  coverage artifact and a 90 % floor for `mcp/`, skip guard, zipapp round trip.
+  `ruff` adds `S`, `PT`, `UP`; mypy is strict for `cits_validator.mcp`.
+
+### Fixed
+- **MAPEM geometry:** `node-XY` offsets are 1 cm units with X = East (longitude) and
+  Y = North (latitude). They were read as 10 cm with the axes swapped, so every exported lane
+  was 10x too long and mirrored.
+- **PCAPNG big-endian** files are read correctly (the byte-order magic is read before the
+  Section Header Block length).
+- **Denial of service:** `caplen`, PCAPNG block lengths and the Section Header Block are
+  capped; the block trailer is verified; request lines, file size and packet count are
+  bounded.
+- **R01:** no false alarms for 802.11 management/control frames, WDS (Address 4), HT-Control
+  or VLAN-tagged Ethernet.
+- **R05:** frames split across chunks are reassembled; discarded bytes are reported; a false
+  magic with an invalid `usec` is rejected.
+- **R03/R04:** `laneId`/`lane_id`/`laneID` are all understood, float noise is tolerated,
+  malformed events no longer crash, orphan SSEM and duplicate SREM are reported.
+- **LISA:** namespaced XML, duplicate/invalid `ObjNr` are reported, aspects are no longer
+  invented, aspects are matched as words (not substrings).
+- `iter_records(path)` returns the same records on every call.
+- JSON-RPC errors carry the real request `id` and the right code (`-32700`, `-32600`,
+  `-32602`, `-32603`).
+
+### Security
+- Path sandbox closed for all profiles and against check/use races (resolved path is used).
+- XML entity expansion / XXE: DTD and entity declarations (and UTF-16/32) are rejected in
+  LISA XML.
+- Vendored ASN.1 modules are checksum-verified; the manifest no longer leaks a build-machine
+  path; the build script has no hard-coded path.
+- systemd unit: `DynamicUser`, empty capability set, kernel/namespace/syscall restrictions,
+  memory and task caps.
+
+### Documented
+- README, SECURITY and the skill references describe the new limits, the 1609.2 behaviour and
+  the `node-XY` units. The review and its status are in
+  `docs/reviews/2026-10-10-codebase-review.md`.
+
+### Known limitations
+- IEEE 1609.2 signatures and certificate chains are not verified; encrypted messages are not
+  decrypted.
+- The 1609.2 reader was validated against vectors built from the specification, not against a
+  real secured field capture.
+- BTP ports 2010, 2013 and 2019 should be checked against ETSI TS 103 248.
+
+### Planned (Milestone 3 - v1.6.0: European Day-2 Suite)
+- **ETSI TS 103 097 PKI:** certificate-chain and signature verification for secured frames.
 
 ---
 
@@ -209,7 +301,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Synchronization Utility (`sync_skill.py`):**
   - One-command synchronizer for Antigravity, OpenCode, Codex, and Claude Code environments.
 
-[Unreleased]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Nemeson/C-ITS-Expert/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Nemeson/C-ITS-Expert/releases/tag/v1.0.0
