@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Sequence
@@ -58,14 +59,50 @@ def _get_ci_attrib(el: ET.Element, *candidates: str) -> str | None:
     return None
 
 
+_DTD_MARKERS = (b"<!doctype", b"<!entity")
+
+
+def _parse_untrusted_xml(data: bytes) -> ET.Element:
+    """Parses LISA XML bytes, refusing DTD/entity declarations (entity expansion, XXE).
+
+    ElementTree expands internal entities (billion laughs). LISA supply files never
+    need a DTD, so rejecting it keeps the parser dependency-free and safe.
+    """
+    # UTF-16/32 would hide the ASCII markers below from the byte scan.
+    if bytes(1) in data or data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        raise ValueError("UTF-16/UTF-32 encoded LISA XML is not supported")
+
+    lowered = data.lower()
+    if any(marker in lowered for marker in _DTD_MARKERS):
+        raise ValueError("DTD/entity declarations are not allowed in LISA XML")
+    try:
+        return ET.fromstring(data)
+    except ET.ParseError as exc:
+        raise ValueError(f"Invalid LISA XML: {exc}") from exc
+
+
+def parse_lisa_xml(xml_text: str) -> LisaSupplyCatalog:
+    """Parses LISA XML given as *text*; never touches the filesystem.
+
+    Use this for untrusted callers (MCP clients). ``parse_lisa_supply`` also accepts
+    file paths and is meant for the CLI, where the user names the file themselves.
+    """
+    if not isinstance(xml_text, str):
+        raise ValueError("xml_text must be a string")
+    return _catalog_from_root(_parse_untrusted_xml(xml_text.encode("utf-8")))
+
+
 def parse_lisa_supply(xml_text_or_path: str | Path) -> LisaSupplyCatalog:
     if isinstance(xml_text_or_path, Path) or (
         isinstance(xml_text_or_path, str) and not xml_text_or_path.strip().startswith("<")
     ):
-        tree = ET.parse(xml_text_or_path)
-        root = tree.getroot()
+        data = Path(xml_text_or_path).read_bytes()
     else:
-        root = ET.fromstring(xml_text_or_path)
+        data = xml_text_or_path.encode("utf-8")
+    return _catalog_from_root(_parse_untrusted_xml(data))
+
+
+def _catalog_from_root(root: ET.Element) -> LisaSupplyCatalog:
 
     catalog = LisaSupplyCatalog()
 

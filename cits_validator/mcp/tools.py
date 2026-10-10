@@ -9,7 +9,8 @@ from cits_validator.core.registry import RuleRegistry
 from cits_validator.geo.geojson_builder import export_mapem_geojson
 from cits_validator.geo.glosa import compute_glosa_advisory
 from cits_validator.geo.kml_builder import export_mapem_kml
-from cits_validator.lisa.parser import parse_lisa_supply
+from cits_validator.lisa.parser import parse_lisa_xml
+from cits_validator.mcp.config import DEFAULT_MAX_FILE_BYTES
 
 
 def _registry(rule_ids: list[str] | None) -> tuple[RuleRegistry, set[str] | None]:
@@ -103,15 +104,21 @@ def cits_check_mapem(
     return report.to_dict()
 
 
-def cits_validate_pcap(file_path: str) -> dict[str, Any]:
+def cits_validate_pcap(
+    file_path: str, max_bytes: int = DEFAULT_MAX_FILE_BYTES
+) -> dict[str, Any]:
     """Audits an entire PCAP/PCAPNG file against link-layer and framing invariants.
 
     Uses the same scanning path as the ``cits-lint`` CLI, so PCAPNG block
     handling, data-coverage reporting and per-file attribution stay identical.
+    Files above ``max_bytes`` are refused to bound CPU/memory on small devices.
     """
     path = Path(file_path)
     if not path.is_file():
         raise FileNotFoundError(f"File not found: {file_path}")
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise ValueError(f"File too large: {size} bytes exceeds limit of {max_bytes}")
 
     registry = build_default_registry()
     report = ValidationReport()
@@ -121,7 +128,7 @@ def cits_validate_pcap(file_path: str) -> dict[str, Any]:
 
 def cits_parse_lisa(xml_content: str) -> dict[str, Any]:
     """Parses and classifies LISA LV.XML supply into structured signal groups."""
-    return parse_lisa_supply(xml_content).to_dict()
+    return parse_lisa_xml(xml_content).to_dict()
 
 
 def cits_compute_glosa(
@@ -157,7 +164,7 @@ def cits_export_kml(
     intersection_name: str = "C-ITS Intersection",
 ) -> dict[str, Any]:
     """Exports MAPEM topology lanes to an OGC KML 2.2 3D document."""
-    lisa_catalog = parse_lisa_supply(lisa_xml) if lisa_xml else None
+    lisa_catalog = parse_lisa_xml(lisa_xml) if lisa_xml else None
     kml_str = export_mapem_kml(
         lanes_json, lisa_catalog=lisa_catalog, intersection_name=intersection_name
     )
@@ -204,7 +211,7 @@ def cits_decode_mapem_to_geojson(
 
     decoded = cits_decode_pdu(hex_payload, "MAPEM", release)
     lanes = mapem_pdu_to_lanes(decoded["value"])
-    lisa_catalog = parse_lisa_supply(lisa_xml) if lisa_xml else None
+    lisa_catalog = parse_lisa_xml(lisa_xml) if lisa_xml else None
     collection = export_mapem_geojson(lanes, lisa_catalog=lisa_catalog)
     # An empty FeatureCollection is indistinguishable from "nothing was drawn yet".
     # The lane count and an explicit status make a PDU without geometry visible

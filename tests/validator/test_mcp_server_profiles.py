@@ -7,6 +7,7 @@ compatible with the original JSON-RPC surface.
 
 from __future__ import annotations
 
+import io
 import json
 
 import pytest
@@ -175,7 +176,7 @@ def test_run_stdio_refuses_remote_without_token(monkeypatch, capsys):
     import sys
 
     # Provide empty stdin so the loop would exit immediately if it ran.
-    monkeypatch.setattr(sys, "stdin", iter([]))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     s = _server(CITS_MCP_BIND_HOST="0.0.0.0")
     with pytest.raises(PermissionError):
         s.run_stdio()
@@ -185,6 +186,6 @@ def test_run_stdio_allows_loopback_without_token(monkeypatch):
     """``run_stdio`` must allow loopback bind without a token."""
     import sys
 
-    monkeypatch.setattr(sys, "stdin", iter([]))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
     s = _server(CITS_MCP_BIND_HOST="127.0.0.1")
     s.run_stdio()  # should not raise

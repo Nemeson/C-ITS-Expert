@@ -6,6 +6,7 @@ from pathlib import Path
 
 VALID_PROFILES = ("device", "host", "ci")
 DEFAULT_MAX_OUTPUT_BYTES = 262144
+DEFAULT_MAX_FILE_BYTES = 256 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class Settings:
     token: str | None
     max_output_bytes: int
     roots: tuple[Path, ...]
+    max_file_bytes: int = DEFAULT_MAX_FILE_BYTES
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "Settings":
@@ -36,4 +38,5 @@ class Settings:
             token=e.get("CITS_MCP_TOKEN") or None,
             max_output_bytes=int(e.get("CITS_MCP_MAX_OUTPUT_BYTES", DEFAULT_MAX_OUTPUT_BYTES)),
             roots=roots,
+            max_file_bytes=int(e.get("CITS_MCP_MAX_FILE_BYTES", DEFAULT_MAX_FILE_BYTES)),
         )
