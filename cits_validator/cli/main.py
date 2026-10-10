@@ -86,6 +86,7 @@ def scan_file(
     registry: RuleRegistry,
     active_rules: set[str] | None,
     report: ValidationReport,
+    max_packets: int | None = None,
 ) -> None:
     suffix = file_path.suffix.lower()
     if suffix in CAPTURE_SUFFIXES:
@@ -96,7 +97,11 @@ def scan_file(
                 state: dict = {}
                 effective_dlts: set[int] = set()
                 file_violations: list[Violation] = []
+                limit_hit = False
                 for record in streamer.iter_records(f):
+                    if max_packets is not None and report.total_inspected >= max_packets:
+                        limit_hit = True
+                        break
                     report.total_inspected += 1
                     # A PCAPNG may interleave interfaces with different link types;
                     # each record is judged against its own (falling back to the
@@ -134,6 +139,20 @@ def scan_file(
                                 "Counts above are authoritative; the listed instances are a "
                                 "representative sample of a repeating pattern."
                             ),
+                        )
+                    )
+
+                if limit_hit:
+                    report.add_violation(
+                        Violation(
+                            rule_id="R01",
+                            severity=Severity.WARNING,
+                            message=(
+                                f"{file_path.name}: scan stopped after {max_packets} packets "
+                                "(packet limit); later packets were not checked"
+                            ),
+                            file_path=str(file_path),
+                            remediation_hint="Raise CITS_MCP_MAX_PACKETS or split the capture.",
                         )
                     )
 

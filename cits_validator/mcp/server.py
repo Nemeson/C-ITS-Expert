@@ -273,7 +273,7 @@ class McpServer:
                 args["lanes_geojson"], args.get("max_chord_meters")
             ),
             "cits_validate_pcap": lambda args: cits_validate_pcap(
-                args["file_path"], self.settings.max_file_bytes
+                args["file_path"], self.settings.max_file_bytes, self.settings.max_packets
             ),
             "cits_parse_lisa": lambda args: cits_parse_lisa(args["xml_content"]),
             "cits_compute_glosa": lambda args: cits_compute_glosa(

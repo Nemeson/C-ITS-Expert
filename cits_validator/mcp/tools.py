@@ -10,7 +10,7 @@ from cits_validator.geo.geojson_builder import export_mapem_geojson
 from cits_validator.geo.glosa import compute_glosa_advisory
 from cits_validator.geo.kml_builder import export_mapem_kml
 from cits_validator.lisa.parser import parse_lisa_xml
-from cits_validator.mcp.config import DEFAULT_MAX_FILE_BYTES
+from cits_validator.mcp.config import DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_PACKETS
 
 
 def _registry(rule_ids: list[str] | None) -> tuple[RuleRegistry, set[str] | None]:
@@ -105,7 +105,9 @@ def cits_check_mapem(
 
 
 def cits_validate_pcap(
-    file_path: str, max_bytes: int = DEFAULT_MAX_FILE_BYTES
+    file_path: str,
+    max_bytes: int = DEFAULT_MAX_FILE_BYTES,
+    max_packets: int = DEFAULT_MAX_PACKETS,
 ) -> dict[str, Any]:
     """Audits an entire PCAP/PCAPNG file against link-layer and framing invariants.
 
@@ -122,7 +124,7 @@ def cits_validate_pcap(
 
     registry = build_default_registry()
     report = ValidationReport()
-    scan_file(path, registry, None, report)
+    scan_file(path, registry, None, report, max_packets=max_packets)
     return report.to_dict()
 
 

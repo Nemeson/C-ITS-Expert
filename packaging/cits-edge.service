@@ -9,6 +9,7 @@ Environment=CITS_MCP_BIND_HOST=127.0.0.1
 # Captures the daemon may read. Must not be "/" (refused at start-up).
 Environment=CITS_MCP_ROOTS=/var/lib/cits-edge
 Environment=CITS_MCP_MAX_FILE_BYTES=67108864
+Environment=CITS_MCP_MAX_PACKETS=500000
 Restart=on-failure
 
 # Sandboxing: the daemon only reads captures and speaks stdio.
