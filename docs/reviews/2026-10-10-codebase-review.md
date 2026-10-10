@@ -76,7 +76,24 @@ Urteil: **BLOCK** (2 CRITICAL, 12 HIGH). Befunde sind aus dem Code abgeleitet, n
 
 ## Umsetzungsstand (TDD, 2026-10-10)
 
-Behoben, jeweils mit zuerst fehlschlagendem Test: C1, C2, H1, H2, H3, H4, H5 (Request-Zeile, Dateigröße), H6, H7, H8, H9, H10, H11, H12, H13, H14 (seeded Fuzz-Tests).
-Zusätzlich gefunden durch den Fuzz-Test: `cits_parse_lisa`/`lisa_xml` behandelte Strings ohne `<` als Dateipfad (Sandbox-Umgehung). Jetzt `parse_lisa_xml` (nur Text).
-Offen: alle MEDIUM/LOW-Befunde, `cits_validate_pcap` Paketlimit (nur Dateigröße begrenzt), systemd-Unit, CI-Härtung.
-Stand: 332 Tests grün, Coverage 89,7 %, ruff und mypy sauber.
+**CRITICAL / HIGH:** vollständig behoben (C1, C2, H1-H14), jeweils mit zuerst fehlschlagendem Test.
+Zusätzlicher Fund durch Fuzzing: `cits_parse_lisa`/`lisa_xml` lasen Strings ohne `<` als Dateipfad (Sandbox-Umgehung) → `parse_lisa_xml` (nur Text).
+
+**MEDIUM / LOW – behoben:**
+- MCP: `cap_output` hält `max_bytes` auf der echten Wire-Serialisierung (sonst expliziter Fehler), Config-Validierung (`os.pathsep`, Limits, kein Filesystem-Root), keine internen Fehlertexte an Clients.
+- Packaging: reproduzierbares Zipapp + `.sha256`, Zipapp liest `CITS_MCP_*`, gehärtete systemd-Unit, SHA-256 der vendorten ASN.1-Module im Manifest (Prüfung vor dem Kompilieren), `vendor_asn1.py` ohne festen Windows-Pfad, `standards_for` gecacht.
+- Core: PCAPNG exakte Zeitauflösung (Base 2/10), Original-Länge, EPB-Truncation, Byte-Order pro Section, deterministische DLT + `dlts`, unbekannte Interfaces gezählt; BTP-Payload durch GN-PL begrenzt, GN-Version ≠ 1 abgelehnt; keine `assert` mehr im Reader.
+- Regeln: R06 (Trailing Bytes, messageID↔Port, sichtbares Sampling, toter `peek_type` entfernt), R01 (unbekannte BTP-Ports, tote Tabelle entfernt, `audit_packet` in Schritte zerlegt), R03 (Key-Varianten, Float-Toleranz, `None`-Lanes), R04 (Robustheit, verwaiste SSEM, doppelte SREM).
+- LISA: Namespaces, keine erfundenen Aspekte, Duplikate/ungültige ObjNr als `warnings`, Wort- statt Substring-Match.
+- Geo: GeoJSON/KML erfinden keine Positionen (0,0), Rollen (`ingress`) oder ungültige LineStrings mehr; gemeinsamer Parser `geo/nodes.py`; GLOSA zerlegt, NaN/inf abgelehnt.
+- CI/Config: Actions per Commit-SHA, `permissions: contents: read`, Windows-Job, `pip-audit`, Coverage-Artefakt, mcp-Floor 90 %, Skip-Wächter, Zipapp-Roundtrip + Checksum, ruff `S/PT/UP`, `--strict-markers`, mypy `disallow_untyped_defs` für `mcp`.
+- Tests: `__main__`, Versions-Fallback, Pfad-Präfix/Symlink, Export-CLI-Fehlerpfade.
+
+**Bewusst offen:**
+- IEEE-1609.2-gesicherte Frames werden weiterhin nicht dekodiert (eigenes Feature: COER-Envelope entpacken).
+- `cits_validate_pcap` begrenzt Dateigröße, aber nicht die Paketzahl.
+- `PcapHeaderInfo`/`PacketRecord` sind nicht `frozen` (Header-Zustand wird beim Iterieren befüllt).
+- BTP-Ports 2010/2013/2019 (`core/geonet.py`) gegen ETSI TS 103 248 abgleichen (nicht verifizierbar ohne Norm).
+- `release_for_message_id` bleibt als Alias von `message_type_for_id`.
+
+**Stand:** 409 Tests grün, Coverage 91,6 % (`mcp/` 96 %), ruff und mypy sauber.

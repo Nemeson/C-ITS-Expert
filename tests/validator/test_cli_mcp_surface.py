@@ -114,7 +114,7 @@ def test_cli_nanosecond_capture_metadata(tmp_path, capsys):
 
 
 def test_cli_unknown_target_exits_two(capsys):
-    assert run_cli([str("does/not/exist.pcap")]) == 2
+    assert run_cli(["does/not/exist.pcap"]) == 2
     assert "not found" in capsys.readouterr().err
 
 
