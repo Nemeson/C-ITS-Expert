@@ -4,6 +4,7 @@ from typing import Any
 
 from cits_validator.asn1.decoder import (
     MESSAGE_TYPES,
+    DecoderUnavailableError,
     PduDecodeError,
     decode_pdu,
     is_available,
@@ -154,6 +155,20 @@ class Asn1ConformanceRule(BaseRule):
         # only its first occurrence is listed.
         try:
             decode_pdu(payload, type_name, self.release)
+        except DecoderUnavailableError as exc:
+            # A broken decoder setup says nothing about the capture: report it
+            # once per scan as a WARNING and do not count it as a decode failure.
+            if state.get("decoder_unavailable_reported"):
+                return []
+            state["decoder_unavailable_reported"] = True
+            return [
+                Violation(
+                    rule_id=self.rule_id,
+                    severity=Severity.WARNING,
+                    message=f"ASN.1 decoder unavailable, payloads were not checked: {exc}",
+                    remediation_hint="Run scripts/vendor_asn1.py or reinstall the package.",
+                )
+            ]
         except PduDecodeError as exc:
             key = f"decode_failures_{type_name}"
             state[key] = state.get(key, 0) + 1

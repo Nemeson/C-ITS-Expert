@@ -111,6 +111,14 @@ class PduDecodeError(Exception):
     """Raised when a PDU cannot be decoded. Never carries a partial result."""
 
 
+class DecoderUnavailableError(PduDecodeError):
+    """The decoder itself cannot run (modules missing, compile failure).
+
+    A setup problem, not a fault in the PDU: callers must not report it as a
+    conformance violation of the captured traffic.
+    """
+
+
 @dataclass
 class DecodeResult:
     message_type: str
@@ -165,7 +173,7 @@ def _module_paths(release: str, message_type: str) -> list[Path]:
     paths = [STANDARDS_DIR / release / name for name in names]
     missing = [p.name for p in paths if not p.is_file()]
     if missing:
-        raise PduDecodeError(
+        raise DecoderUnavailableError(
             "Vendored ASN.1 modules missing: "
             + ", ".join(missing)
             + ". Run scripts/vendor_asn1.py."
@@ -181,7 +189,7 @@ def _compile(release: str, message_type: str) -> Any:
     try:
         return asn1tools.compile_files([str(p) for p in paths], "uper")
     except Exception as exc:  # asn1tools raises CompileError / FileNotFoundError
-        raise PduDecodeError(
+        raise DecoderUnavailableError(
             f"Failed to compile ASN.1 modules for {release}/{message_type}: {exc}"
         ) from exc
 

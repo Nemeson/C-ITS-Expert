@@ -110,19 +110,43 @@ def link_layer_offset(data: bytes, dlt: int) -> int | None:
     return None
 
 
-def _ethernet_geonet_offset(data: bytes) -> int | None:
+def dot11_mac_header_len(fc: int) -> int:
+    """Length of an 802.11 Data-frame MAC header, derived from the Frame Control word.
+
+    24 bytes, +6 for Address 4 (ToDS and FromDS, i.e. WDS), +2 for QoS Control,
+    +4 for HT Control when the Order bit is set on a QoS frame. Captures vary;
+    each component is derived from Frame Control, never assumed.
+    """
+    mac_len = 24
+    if (fc >> 8) & 0x01 and (fc >> 9) & 0x01:
+        mac_len += 6
+    if ((fc >> 4) & 0x0F) == 8:  # QoS Data
+        mac_len += 2
+        if (fc >> 15) & 0x01:
+            mac_len += 4
+    return mac_len
+
+
+def ethernet_payload(data: bytes) -> tuple[int, int] | None:
+    """Returns ``(ethertype, payload_offset)``, unwrapping one 802.1Q/802.1ad tag."""
     if len(data) < ETHERNET_HEADER_LEN:
         return None
     offset = ETHERNET_HEADER_LEN
     ethertype = int.from_bytes(data[12:14], "big")
-
     if ethertype in (ETHERTYPE_VLAN_8021Q, ETHERTYPE_VLAN_8021AD):
         # 802.1Q: dst(6) src(6) TPID(2) TCI(2) inner-EtherType(2) payload.
-        # The inner EtherType sits two bytes before the payload, not four.
         if len(data) < offset + VLAN_TAG_LEN:
             return None
         ethertype = int.from_bytes(data[offset + VLAN_TAG_LEN - 2 : offset + VLAN_TAG_LEN], "big")
         offset += VLAN_TAG_LEN
+    return ethertype, offset
+
+
+def _ethernet_geonet_offset(data: bytes) -> int | None:
+    parsed = ethernet_payload(data)
+    if parsed is None:
+        return None
+    ethertype, offset = parsed
 
     if ethertype == ETHERTYPE_GEONETWORKING:
         return offset
@@ -149,20 +173,7 @@ def _dot11_geonet_offset(data: bytes, dlt: int) -> int | None:
     if ((fc >> 2) & 0x03) != 2:  # Not a Data frame
         return None
 
-    to_ds = (fc >> 8) & 0x01
-    from_ds = (fc >> 9) & 0x01
-    # 802.11 MAC header: 24 bytes, +6 for Address 4 (WDS), +2 for QoS Control,
-    # +4 for HT Control when the Order bit is set on a QoS frame. Captures vary;
-    # each component is derived from the Frame Control word, never assumed.
-    mac_len = 24
-    if to_ds and from_ds:
-        mac_len += 6
-    subtype = (fc >> 4) & 0x0F
-    if subtype == 8:  # QoS Data
-        mac_len += 2
-    if subtype == 8 and ((fc >> 15) & 0x01):  # Order bit on a QoS frame
-        mac_len += 4
-    offset += mac_len
+    offset += dot11_mac_header_len(fc)
 
     if len(data) < offset + 8:
         return None

@@ -123,20 +123,45 @@ def compute_glosa_advisory(
             details=f"Cannot reach stopline before green ends in {time_to_phase_end_s:.1f}s. Prepare to stop.",
         )
 
-    elif state in ("RED", "YELLOW"):
-        # Vehicle must wait for current phase (RED/YELLOW) to end
+    elif state == "YELLOW":
+        # YELLOW ends in RED, not green: time_to_phase_end_s is when red starts, and
+        # the red duration is unknown, so no safe pass window can be derived.
+        return GlosaAdvisory(
+            speed_min_kmh=0.0,
+            speed_max_kmh=0.0,
+            recommendation=RECOMMENDATION_STOP,
+            time_to_stopline_s=round(eta_current_s if eta_current_s != float("inf") else 0.0, 1),
+            is_pass_possible=False,
+            details="Signal is YELLOW and turns red next. Prepare to stop.",
+        )
+
+    elif state == "RED":
+        # Vehicle must wait for the red phase to end
         red_end = time_to_phase_end_s
         if red_end > 0.0:
             if next_green_duration_s > 0.0:
                 green_start = red_end
                 green_end = red_end + next_green_duration_s - safety_buffer_s
 
+                # Green shorter than the safety buffer leaves no usable window.
+                if green_end <= green_start:
+                    return GlosaAdvisory(
+                        speed_min_kmh=0.0,
+                        speed_max_kmh=0.0,
+                        recommendation=RECOMMENDATION_STOP,
+                        time_to_stopline_s=round(
+                            eta_current_s if eta_current_s != float("inf") else 0.0, 1
+                        ),
+                        is_pass_possible=False,
+                        details="Upcoming green is too short to pass safely. Prepare to stop.",
+                    )
+
                 # Earliest arrival allowed is green_start
-                v_max_allowable = (distance_m / green_start) * 3.6 if green_start > 0 else speed_limit_kmh
+                v_max_allowable = distance_m / green_start * 3.6
                 v_max = min(speed_limit_kmh, v_max_allowable)
 
                 # Latest arrival allowed is green_end
-                v_min_allowable = (distance_m / green_end) * 3.6 if green_end > 0 else min_comfort_speed_kmh
+                v_min_allowable = distance_m / green_end * 3.6
                 v_min = max(min_comfort_speed_kmh, v_min_allowable)
             else:
                 # Standard SPATEM without upcoming phase duration:

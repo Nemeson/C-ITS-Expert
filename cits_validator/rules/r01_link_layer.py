@@ -7,6 +7,9 @@ from cits_validator.core.geonet import (
     DLT_EN10MB,
     DLT_IEEE802_11,
     DLT_IEEE802_11_RADIO,
+    LLC_SNAP_GEONET,
+    dot11_mac_header_len,
+    ethernet_payload,
     locate_geonetworking_frame,
 )
 from cits_validator.core.models import Severity, Violation
@@ -85,6 +88,26 @@ class LinkLayerRule(BaseRule):
 
         # 2. 802.11 MAC Frame Unwrapping
         if dlt in (DLT_IEEE802_11_RADIO, DLT_IEEE802_11):
+            if len(data) < offset + 2:
+                violations.append(
+                    Violation(
+                        rule_id=self.rule_id,
+                        severity=Severity.ERROR,
+                        message="Payload too short for 802.11 Frame Control",
+                        packet_index=record.index,
+                        byte_offset=offset,
+                        remediation_hint="Check if frame was truncated before the 802.11 MAC header.",
+                    )
+                )
+                return violations
+
+            fc = struct.unpack("<H", data[offset : offset + 2])[0]
+            if (fc & 0x000C) >> 2 != 2:
+                # Management and control frames (beacons, ACK, RTS ...) carry no
+                # LLC/SNAP and may be shorter than 24 bytes: valid, just not V2X data.
+                self._cover(state, "dot11_non_data")
+                return violations
+
             if len(data) < offset + 24:
                 violations.append(
                     Violation(
@@ -98,17 +121,7 @@ class LinkLayerRule(BaseRule):
                 )
                 return violations
 
-            fc = struct.unpack("<H", data[offset : offset + 2])[0]
-            fc_type = (fc & 0x000C) >> 2
-            fc_subtype = (fc & 0x00F0) >> 4
-
-            # Type 2 = Data
-            if fc_type == 2:
-                # Subtype 8 = QoS Data -> 26 bytes header (24 standard + 2 QoS Control)
-                mac_len = 26 if fc_subtype == 8 else 24
-            else:
-                mac_len = 24
-
+            mac_len = dot11_mac_header_len(fc)
             if len(data) < offset + mac_len:
                 violations.append(
                     Violation(
@@ -138,8 +151,7 @@ class LinkLayerRule(BaseRule):
                 return violations
 
             llc_snap = data[offset : offset + 8]
-            expected_llc = b"\xaa\xaa\x03\x00\x00\x00\x89\x47"
-            if llc_snap != expected_llc:
+            if llc_snap != LLC_SNAP_GEONET:
                 violations.append(
                     Violation(
                         rule_id=self.rule_id,
@@ -160,7 +172,8 @@ class LinkLayerRule(BaseRule):
             offset += 8
 
         elif dlt == DLT_EN10MB:
-            if len(data) < 14:
+            parsed = ethernet_payload(data)
+            if parsed is None:
                 violations.append(
                     Violation(
                         rule_id=self.rule_id,
@@ -172,16 +185,17 @@ class LinkLayerRule(BaseRule):
                 )
                 return violations
 
-            ethertype = struct.unpack(">H", data[12:14])[0]
+            ethertype, payload_offset = parsed
             if ethertype == 0x8947:
                 self._cover(state, "ethernet")
-                offset = 14
+                offset = payload_offset
             elif ethertype <= 1500:
                 # 802.3 length + LLC/SNAP
-                if len(data) >= 22 and data[14:22] == b"\xaa\xaa\x03\x00\x00\x00\x89\x47":
+                llc_end = payload_offset + len(LLC_SNAP_GEONET)
+                if data[payload_offset:llc_end] == LLC_SNAP_GEONET:
                     self._cover(state, "ethernet")
                     self._cover(state, "llc_snap")
-                    offset = 22
+                    offset = llc_end
                 else:
                     violations.append(
                         Violation(
@@ -189,7 +203,7 @@ class LinkLayerRule(BaseRule):
                             severity=Severity.ERROR,
                             message="Invalid 802.3 LLC/SNAP EtherType: expected 0x8947",
                             packet_index=record.index,
-                            byte_offset=14,
+                            byte_offset=payload_offset,
                         )
                     )
                     return violations
