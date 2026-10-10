@@ -9,6 +9,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from cits_validator.geo.nodes import parse_node_coord
 from cits_validator.lisa.models import LisaSupplyCatalog
 
 KML_NS = "http://www.opengis.net/kml/2.2"
@@ -18,21 +19,6 @@ ET.register_namespace("", KML_NS)
 def _qname(tag: str) -> str:
     """Returns qualified element name with default KML namespace."""
     return f"{{{KML_NS}}}{tag}"
-
-
-def _parse_node_coord(node: Any) -> tuple[float, float, float]:
-    """Extracts (lon, lat, alt) tuple from node."""
-    if isinstance(node, dict):
-        lat = float(node.get("lat") or node.get("latitude") or 0.0)
-        lon = float(node.get("lon") or node.get("longitude") or 0.0)
-        alt = float(node.get("elevation") or node.get("alt") or node.get("altitude") or 0.0)
-        return lon, lat, alt
-    elif isinstance(node, (list, tuple)):
-        lat = float(node[0])
-        lon = float(node[1])
-        alt = float(node[2]) if len(node) > 2 else 0.0
-        return lon, lat, alt
-    return 0.0, 0.0, 0.0
 
 
 def _add_style(document: ET.Element, style_id: str, kml_color_aabbggrr: str, width: int = 4) -> None:
@@ -99,13 +85,15 @@ def export_mapem_kml(
 
     for lane in lanes:
         lane_id = lane.get("lane_id") if lane.get("lane_id") is not None else lane.get("laneId")
-        lane_type = str(lane.get("lane_type") or lane.get("type") or "ingress")
+        lane_type = str(lane.get("lane_type") or lane.get("type") or "unknown")
         raw_nodes = lane.get("nodes") or []
 
         if not raw_nodes:
             continue
 
-        coords = [_parse_node_coord(n) for n in raw_nodes]
+        coords = [c for c in (parse_node_coord(n) for n in raw_nodes) if c is not None]
+        if not coords:
+            continue
 
         # Extract signal group (handle 0 as valid ID)
         signal_group: int | None = (
@@ -154,11 +142,18 @@ def export_mapem_kml(
         ET.SubElement(pm, _qname("styleUrl")).text = style_url
         ET.SubElement(pm, _qname("description")).text = "\n".join(desc_parts)
 
-        linestring = ET.SubElement(pm, _qname("LineString"))
-        ET.SubElement(linestring, _qname("extrude")).text = "1"
-        ET.SubElement(linestring, _qname("altitudeMode")).text = "relativeToGround"
-        coords_str = " ".join(f"{lon},{lat},{alt}" for lon, lat, alt in coords)
-        ET.SubElement(linestring, _qname("coordinates")).text = coords_str
+        if len(coords) >= 2:
+            linestring = ET.SubElement(pm, _qname("LineString"))
+            ET.SubElement(linestring, _qname("extrude")).text = "1"
+            ET.SubElement(linestring, _qname("altitudeMode")).text = "relativeToGround"
+            coords_str = " ".join(f"{lon},{lat},{alt}" for lon, lat, alt in coords)
+            ET.SubElement(linestring, _qname("coordinates")).text = coords_str
+        else:
+            # A single position cannot be a LineString; emit it as a Point.
+            single = ET.SubElement(pm, _qname("Point"))
+            ET.SubElement(single, _qname("altitudeMode")).text = "relativeToGround"
+            lon1, lat1, alt1 = coords[0]
+            ET.SubElement(single, _qname("coordinates")).text = f"{lon1},{lat1},{alt1}"
 
         # Stopline Placemark for Node 0 of ingress lanes
         if "ingress" in t or "inbound" in t:

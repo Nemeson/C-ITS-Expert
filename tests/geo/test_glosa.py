@@ -1,3 +1,5 @@
+import pytest
+
 from cits_validator.geo.glosa import (
     RECOMMENDATION_ACCELERATE,
     RECOMMENDATION_CRUISE,
@@ -127,3 +129,25 @@ def test_red_with_green_shorter_than_safety_buffer_has_no_solution():
 
     assert advisory.is_pass_possible is False
     assert advisory.recommendation == RECOMMENDATION_STOP
+
+
+# --- input validation ----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["distance_m", "current_speed_kmh", "time_to_phase_end_s", "next_green_duration_s"],
+)
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_non_finite_inputs_are_rejected(field, bad):
+    kwargs = {
+        "distance_m": 100.0,
+        "current_speed_kmh": 50.0,
+        "phase_state": "GREEN",
+        "time_to_phase_end_s": 10.0,
+        "next_green_duration_s": 5.0,
+    }
+    kwargs[field] = bad
+
+    with pytest.raises(ValueError, match=field):
+        compute_glosa_advisory(**kwargs)

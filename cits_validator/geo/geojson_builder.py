@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from cits_validator.geo.nodes import parse_node_coord
 from cits_validator.lisa.models import LisaSupplyCatalog
 
 COLOR_INGRESS = "#00e5ff"
@@ -17,21 +18,6 @@ COLOR_CROSSWALK = "#ff9100"
 COLOR_BIKE = "#76ff03"
 COLOR_CONNECTION = "#ffea00"
 COLOR_STOPLINE = "#ff1744"
-
-
-def _parse_node_coord(node: Any) -> list[float]:
-    """Extracts [lon, lat, alt] from a node dict or tuple."""
-    if isinstance(node, dict):
-        lat = float(node.get("lat") or node.get("latitude") or 0.0)
-        lon = float(node.get("lon") or node.get("longitude") or 0.0)
-        alt = float(node.get("elevation") or node.get("alt") or node.get("altitude") or 0.0)
-        return [lon, lat, alt]
-    elif isinstance(node, (list, tuple)):
-        lat = float(node[0])
-        lon = float(node[1])
-        alt = float(node[2]) if len(node) > 2 else 0.0
-        return [lon, lat, alt]
-    return [0.0, 0.0, 0.0]
 
 
 def _get_lane_color(lane_type: str) -> str:
@@ -84,13 +70,17 @@ def export_mapem_geojson(
 
     for lane in lanes:
         lane_id = lane.get("lane_id") if lane.get("lane_id") is not None else lane.get("laneId")
-        lane_type = str(lane.get("lane_type") or lane.get("type") or "ingress")
+        # A lane that names no role stays "unknown"; guessing "ingress" would also
+        # attach a stopline marker that the data does not support.
+        lane_type = str(lane.get("lane_type") or lane.get("type") or "unknown")
         raw_nodes = lane.get("nodes") or []
 
         if not raw_nodes:
             continue
 
-        coordinates = [_parse_node_coord(n) for n in raw_nodes]
+        coordinates = [c for c in (parse_node_coord(n) for n in raw_nodes) if c is not None]
+        if not coordinates:
+            continue
 
         # Extract signal group if present (handle 0 as valid ID)
         signal_group: int | None = (
@@ -124,14 +114,13 @@ def export_mapem_geojson(
                     props["lisa_aspects"] = sg_obj.aspects
 
         # 1. Lane LineString feature
-        features.append({
-            "type": "Feature",
-            "geometry": {
-                "type": "LineString",
-                "coordinates": coordinates,
-            },
-            "properties": props,
-        })
+        # RFC 7946: a LineString needs two or more positions.
+        geometry: dict[str, Any] = (
+            {"type": "LineString", "coordinates": coordinates}
+            if len(coordinates) >= 2
+            else {"type": "Point", "coordinates": coordinates[0]}
+        )
+        features.append({"type": "Feature", "geometry": geometry, "properties": props})
 
         # 2. Ingress Stopline Marker (Node 0 is the stopline per ETSI / ISO TS 19091)
         if "ingress" in lane_type.lower() or "inbound" in lane_type.lower():
