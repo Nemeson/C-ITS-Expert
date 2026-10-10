@@ -9,6 +9,8 @@ lazily, so importing the modules does not require the dependency to be present.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
 import shutil
 import tempfile
 import zipapp
@@ -18,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "cits_validator"
 
 MAIN_TEMPLATE = '''import json
+import os
 import sys
 
 from cits_validator.mcp.config import Settings
@@ -25,7 +28,8 @@ from cits_validator.mcp.server import McpServer
 
 
 def main() -> int:
-    server = McpServer(settings=Settings.from_env({"CITS_MCP_PROFILE": "device"}))
+    # The device profile is fixed; roots and limits come from the environment.
+    server = McpServer(settings=Settings.from_env({**os.environ, "CITS_MCP_PROFILE": "device"}))
     if len(sys.argv) > 1 and sys.argv[1] == "selftest":
         resp = server.handle_request(
             {"id": 0, "method": "tools/call",
@@ -53,22 +57,37 @@ def _should_copy(path: Path) -> bool:
     return True
 
 
+# Fixed timestamp (zip epoch) so identical sources give a byte-identical archive.
+FIXED_MTIME = 315532800  # 1980-01-01T00:00:00Z
+
+
 def build(output: Path) -> Path:
     src_pkg = REPO_ROOT / PACKAGE_NAME
     with tempfile.TemporaryDirectory() as tmp:
         build_dir = Path(tmp) / "app"
         target_pkg = build_dir / PACKAGE_NAME
-        for src_file in src_pkg.rglob("*.py"):
+        for src_file in sorted(src_pkg.rglob("*.py")):
             if not _should_copy(src_file):
                 continue
             rel = src_file.relative_to(src_pkg)
             dst = target_pkg / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_file, dst)
+            shutil.copyfile(src_file, dst)
+            os.chmod(dst, 0o644)
+            os.utime(dst, (FIXED_MTIME, FIXED_MTIME))
 
-        (build_dir / "__main__.py").write_text(MAIN_TEMPLATE, encoding="utf-8")
+        main_py = build_dir / "__main__.py"
+        main_py.write_text(MAIN_TEMPLATE, encoding="utf-8")
+        os.chmod(main_py, 0o644)
+        os.utime(main_py, (FIXED_MTIME, FIXED_MTIME))
+        for directory in build_dir.rglob("*"):
+            if directory.is_dir():
+                os.utime(directory, (FIXED_MTIME, FIXED_MTIME))
         output.parent.mkdir(parents=True, exist_ok=True)
         zipapp.create_archive(build_dir, target=str(output), interpreter="/usr/bin/env python3")
+    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    checksum = output.with_name(output.name + ".sha256")
+    checksum.write_text(f"{digest}  {output.name}\n", encoding="utf-8")
     return output
 
 

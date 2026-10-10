@@ -6,11 +6,31 @@ After=network-online.target
 ExecStart=/usr/bin/python3 /opt/cits-edge/cits-edge.pyz
 Environment=CITS_MCP_PROFILE=device
 Environment=CITS_MCP_BIND_HOST=127.0.0.1
+# Captures the daemon may read. Must not be "/" (refused at start-up).
+Environment=CITS_MCP_ROOTS=/var/lib/cits-edge
+Environment=CITS_MCP_MAX_FILE_BYTES=67108864
 Restart=on-failure
+
+# Sandboxing: the daemon only reads captures and speaks stdio.
+DynamicUser=yes
+StateDirectory=cits-edge
 NoNewPrivileges=true
+CapabilityBoundingSet=
 ProtectSystem=strict
 ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
 PrivateTmp=true
+PrivateDevices=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+# Bound the damage of a hostile capture (see the size caps in the reader).
+MemoryMax=256M
+TasksMax=32
 
 [Install]
 WantedBy=multi-user.target

@@ -14,12 +14,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
-DEFAULT_SOURCE = Path(r"C:/PythonTools/cits-inspector-v2/docs/standards/asn")
+DEFAULT_SOURCE = Path(os.environ["CITS_ASN1_SOURCE"]) if os.environ.get("CITS_ASN1_SOURCE") else None
 DEFAULT_DEST = Path(__file__).resolve().parent.parent / "cits_validator" / "asn1" / "standards"
 
 # (relative source path, release, standard, version, message scope, source URL)
@@ -234,12 +236,15 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--dest", type=Path, default=DEFAULT_DEST)
     args = parser.parse_args(argv[1:])
 
+    if args.source is None:
+        print("Pass --source or set CITS_ASN1_SOURCE to the standards corpus", file=sys.stderr)
+        return 2
     if not args.source.is_dir():
         print(f"Source corpus not found: {args.source}", file=sys.stderr)
         return 2
 
     args.dest.mkdir(parents=True, exist_ok=True)
-    manifest = {"source": str(args.source), "modules": []}
+    manifest = {"modules": []}
 
     for rel, release, standard, version, scope, url in MODULES:
         src = args.source / rel
@@ -259,6 +264,7 @@ def main(argv: list[str]) -> int:
                 "scope": scope,
                 "source_url": url,
                 "source_path": rel,
+                "sha256": hashlib.sha256(dst.read_bytes()).hexdigest(),
             }
         )
         print(f"[OK] {release}/{src.name}")

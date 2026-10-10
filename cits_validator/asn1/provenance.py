@@ -25,6 +25,7 @@ class ModuleProvenance:
     scope: str
     source_url: str
     source_path: str = ""
+    sha256: str = ""
 
     @property
     def path(self) -> Path:

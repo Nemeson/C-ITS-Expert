@@ -13,7 +13,7 @@ Design rules, learned from the failure modes this repository exists to prevent:
 
 from __future__ import annotations
 
-import json
+import hashlib
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -126,6 +126,8 @@ class DecodeResult:
     value: dict[str, Any]
     byte_length: int
     standards: list[str] = field(default_factory=list)
+    # Bytes after the end of the encoded PDU. UPER decoders ignore them silently.
+    trailing_bytes: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,6 +135,7 @@ class DecodeResult:
             "release": self.release,
             "byte_length": self.byte_length,
             "standards": self.standards,
+            "trailing_bytes": self.trailing_bytes,
             "value": _jsonable(self.value),
         }
 
@@ -178,6 +181,7 @@ def _module_paths(release: str, message_type: str) -> list[Path]:
             + ", ".join(missing)
             + ". Run scripts/vendor_asn1.py."
         )
+    _verify_checksums(paths, release)
     return paths
 
 
@@ -194,15 +198,28 @@ def _compile(release: str, message_type: str) -> Any:
         ) from exc
 
 
-def standards_for(release: str, message_type: str) -> list[str]:
-    """'Standard version' labels of the modules used for a decode."""
+@lru_cache(maxsize=64)
+def standards_for(release: str, message_type: str) -> tuple[str, ...]:
+    """'Standard version' labels of the modules used for a decode (cached: the
+    manifest is read from disk once per message type, not once per packet)."""
     wanted = set(_MODULE_SETS.get((release, message_type), ()))
     labels = [
         f"{m.standard} {m.version}"
         for m in load_manifest()
         if m.release == release and Path(m.file).name in wanted
     ]
-    return sorted(set(labels))
+    return tuple(sorted(set(labels)))
+
+
+def _verify_checksums(paths: list[Path], release: str) -> None:
+    """Refuses modules that differ from the manifest (tampering / corrupt vendoring)."""
+    expected = {Path(m.file).name: m.sha256 for m in load_manifest() if m.release == release}
+    for path in paths:
+        want = expected.get(path.name)
+        if want and hashlib.sha256(path.read_bytes()).hexdigest() != want:
+            raise DecoderUnavailableError(
+                f"Vendored ASN.1 module {path.name} fails its checksum; re-run scripts/vendor_asn1.py."
+            )
 
 
 def decode_pdu(
@@ -241,15 +258,25 @@ def decode_pdu(
         ) from exc
 
     return DecodeResult(
+        trailing_bytes=_trailing_bytes(spec, spec_name, value, len(data)),
         message_type=message_type,
         release=release,
         value=value,
         byte_length=len(data),
-        standards=standards_for(release, message_type),
+        standards=list(standards_for(release, message_type)),
     )
 
 
-def release_for_message_id(message_id: int) -> str | None:
+def _trailing_bytes(spec: Any, spec_name: str, value: Any, data_len: int) -> int:
+    """Bytes of input beyond the canonical re-encoding of the decoded value."""
+    try:
+        encoded_len = len(spec.encode(spec_name, value))
+    except Exception:
+        return 0  # cannot tell; do not invent a finding
+    return max(0, data_len - encoded_len)
+
+
+def message_type_for_id(message_id: int) -> str | None:
     """Best-effort release hint from the ItsPduHeader messageID.
 
     Both releases share message IDs (cam=2, denm=1, spatem=4, mapem=5, srem=9,
@@ -259,6 +286,10 @@ def release_for_message_id(message_id: int) -> str | None:
     return {1: "DENM", 2: "CAM", 4: "SPATEM", 5: "MAPEM", 9: "SREM", 10: "SSEM"}.get(
         message_id, None
     )
+
+
+# Deprecated alias: the map yields a message *type*, not a release.
+release_for_message_id = message_type_for_id
 
 
 def peek_message_id(data: bytes) -> int | None:
@@ -275,7 +306,7 @@ def peek_message_id(data: bytes) -> int | None:
 
 def describe_standards() -> list[dict[str, str]]:
     """The vendored standards catalogue (release, standard, version)."""
-    return json.loads(json.dumps(_standards_payload()))
+    return _standards_payload()
 
 
 def _standards_payload() -> list[dict[str, str]]:
