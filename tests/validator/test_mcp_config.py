@@ -1,3 +1,5 @@
+import os
+
 from cits_validator.mcp.config import Settings
 
 
@@ -15,7 +17,7 @@ def test_env_overrides():
         "CITS_MCP_PROFILE": "device",
         "CITS_MCP_TOKEN": "secret",
         "CITS_MCP_MAX_OUTPUT_BYTES": "1024",
-        "CITS_MCP_ROOTS": "a;b",
+        "CITS_MCP_ROOTS": os.pathsep.join(["a", "b"]),
     })
     assert s.profile == "device"
     assert s.token == "secret"

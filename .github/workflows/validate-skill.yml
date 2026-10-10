@@ -42,7 +42,7 @@ jobs:
       # is required: without it the R06/ASN.1 tests skip and the coverage gate fails.
       - name: Install package and test dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip "setuptools>=83"
           pip install -e ".[asn1,dev]" pyyaml pip-audit
 
       - name: Audit dependencies for known vulnerabilities
