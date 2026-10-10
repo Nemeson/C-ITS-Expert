@@ -8,8 +8,8 @@ from cits_validator.asn1.decoder import (
     PduDecodeError,
     decode_pdu,
     is_available,
+    message_type_for_id,
     peek_message_id,
-    release_for_message_id,
 )
 from cits_validator.asn1.provenance import STANDARDS_DIR
 from cits_validator.core.geonet import BTP_PORTS, locate_geonetworking_frame
@@ -141,20 +141,52 @@ class Asn1ConformanceRule(BaseRule):
         if type_name is None or frame.payload_offset is None:
             return []
 
-        payload = record.data[frame.payload_offset :]
+        payload = record.data[frame.payload_offset : frame.payload_end]
         if not payload:
             return []
+
+        message_id = peek_message_id(payload)
+        id_type = message_type_for_id(message_id) if message_id is not None else None
+        if id_type is not None and id_type != type_name:
+            key = f"id_mismatch_{type_name}"
+            state[key] = state.get(key, 0) + 1
+            if state[key] > 1:
+                return []
+            return [
+                Violation(
+                    rule_id=self.rule_id,
+                    severity=Severity.ERROR,
+                    message=(
+                        f"messageID {message_id} ({id_type}) does not match BTP port "
+                        f"{frame.btp_port} ({type_name})"
+                    ),
+                    packet_index=record.index,
+                    offending_sample=payload[:16].hex(),
+                    remediation_hint="The BTP destination port and the ItsPduHeader disagree.",
+                )
+            ]
 
         seen_key = f"seen_{type_name}"
         state[seen_key] = state.get(seen_key, 0) + 1
         if state[seen_key] > self.max_decodes_per_type:
+            if state[seen_key] == self.max_decodes_per_type + 1:
+                return [
+                    Violation(
+                        rule_id=self.rule_id,
+                        severity=Severity.INFO,
+                        message=(
+                            f"ASN.1 sampling: only the first {self.max_decodes_per_type} "
+                            f"{type_name} frames are decoded; later frames are not checked"
+                        ),
+                    )
+                ]
             return []
 
         # A successful decode is progress, not a finding: emitting an INFO per
         # frame would bury the report. Only a real fault becomes a violation, and
         # only its first occurrence is listed.
         try:
-            decode_pdu(payload, type_name, self.release)
+            decoded = decode_pdu(payload, type_name, self.release)
         except DecoderUnavailableError as exc:
             # A broken decoder setup says nothing about the capture: report it
             # once per scan as a WARNING and do not count it as a decode failure.
@@ -189,15 +221,23 @@ class Asn1ConformanceRule(BaseRule):
             ]
 
         state[f"decoded_{type_name}"] = state.get(f"decoded_{type_name}", 0) + 1
+        if decoded.trailing_bytes and not state.get(f"trailing_reported_{type_name}"):
+            state[f"trailing_reported_{type_name}"] = True
+            return [
+                Violation(
+                    rule_id=self.rule_id,
+                    severity=Severity.WARNING,
+                    message=(
+                        f"{type_name} payload has {decoded.trailing_bytes} trailing byte(s) "
+                        "after the encoded PDU"
+                    ),
+                    packet_index=record.index,
+                    remediation_hint="Check for a stray FCS, padding or a wrong payload length.",
+                )
+            ]
         return []
 
     # -- helpers for tooling ---------------------------------------------------
-    @staticmethod
-    def peek_type(payload: bytes) -> str | None:
-        """The message family implied by the ItsPduHeader messageID, if known."""
-        message_id = peek_message_id(payload)
-        return release_for_message_id(message_id) if message_id is not None else None
-
     @staticmethod
     def standards_dir() -> str:
         return str(STANDARDS_DIR)

@@ -26,7 +26,7 @@ def _frame(payload: bytes, btp_port: int = 2004) -> bytes:
 
 
 def _record(index: int) -> PacketRecord:
-    data = _frame(b"\x01" * 20)
+    data = _frame(b"\x01\x04" + b"\x00" * 18)  # messageID 4 = SPATEM, matching port 2004
     return PacketRecord(index=index, timestamp=0.0, caplen=len(data), wirelen=len(data), data=data)
 
 

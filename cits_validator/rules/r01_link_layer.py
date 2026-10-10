@@ -4,6 +4,7 @@ import struct
 from typing import Any
 
 from cits_validator.core.geonet import (
+    BTP_PORTS,
     DLT_EN10MB,
     DLT_IEEE802_11,
     DLT_IEEE802_11_RADIO,
@@ -26,16 +27,6 @@ class LinkLayerRule(BaseRule):
         "Enforces dynamic Radiotap length parsing, 802.11 QoS Data traversal, "
         "LLC/SNAP 0x8947 validation, and BTP port sanity."
     )
-
-    KNOWN_BTP_PORTS = {
-        2001: "CAM",
-        2002: "DENM",
-        2003: "MAPEM",
-        2004: "SPATEM",
-        2006: "IVIM",
-        2007: "SREM",
-        2008: "SSEM",
-    }
 
     @staticmethod
     def _cover(state: dict[str, Any], category: str, count: int = 1) -> None:
@@ -235,5 +226,18 @@ class LinkLayerRule(BaseRule):
                 self._cover(state, "btp")
                 ports = state.setdefault("btp_ports", {})
                 ports[frame.btp_port] = ports.get(frame.btp_port, 0) + 1
+                if frame.btp_port not in BTP_PORTS and ports[frame.btp_port] == 1:
+                    violations.append(
+                        Violation(
+                            rule_id=self.rule_id,
+                            severity=Severity.INFO,
+                            message=(
+                                f"BTP destination port {frame.btp_port} is not a well-known "
+                                "ITS service port (ETSI TS 103 248)"
+                            ),
+                            packet_index=record.index,
+                            byte_offset=frame.btp_offset,
+                        )
+                    )
 
         return violations
