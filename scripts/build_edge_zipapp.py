@@ -87,7 +87,8 @@ def build(output: Path) -> Path:
         zipapp.create_archive(build_dir, target=str(output), interpreter="/usr/bin/env python3")
     digest = hashlib.sha256(output.read_bytes()).hexdigest()
     checksum = output.with_name(output.name + ".sha256")
-    checksum.write_text(f"{digest}  {output.name}\n", encoding="utf-8")
+    # Bytes, not text: text mode would write CRLF on Windows and break `sha256sum -c`.
+    checksum.write_bytes(f"{digest}  {output.name}\n".encode())
     return output
 
 

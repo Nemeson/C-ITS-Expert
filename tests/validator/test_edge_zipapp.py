@@ -110,3 +110,12 @@ def test_systemd_unit_is_hardened_and_configures_roots():
     ]
     missing = [d for d in required if d not in unit]
     assert missing == []
+
+
+def test_checksum_file_is_lf_terminated_so_sha256sum_works_everywhere(tmp_path):
+    _build(tmp_path, "e.pyz")
+
+    raw = (tmp_path / "e.pyz.sha256").read_bytes()
+
+    assert b"\r" not in raw
+    assert raw.endswith(b"e.pyz\n")
