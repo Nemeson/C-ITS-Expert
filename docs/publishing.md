@@ -4,9 +4,12 @@ The repository is public (MIT). This page lists what remains to make it easy to 
 Items marked **[you]** need an account or a decision that only the maintainer can make.
 
 ## 1. Before promoting widely
-- [ ] **[you] Licence status of the vendored ASN.1 modules** - see `NOTICE`. The files carry no
-      licence header and their redistribution terms are not documented. Decide: confirm the terms of
-      the ETSI Forge / ISO sources, or switch to fetching the modules at install time.
+- [x] Licence bookkeeping: ETSI modules are BSD-3-Clause and the licence text ships in
+      `cits_validator/asn1/standards/LICENSE-ETSI.txt`; `NOTICE` and the manifest record the origin and
+      licence of every file.
+- [ ] **[you] Send the permission requests** in `docs/legal/permission-requests.md` (ISO and ETSI) for the
+      three ISO-derived files. Until they answer, treat redistribution of those three files as unconfirmed.
+      Fallback if refused: fetch them from standards.iso.org on demand.
 - [ ] **[you] Verify the IEEE 1609.2 reader with a real EU secured capture** (known limitation).
 - [ ] **[you]** Check BTP ports 2010, 2013, 2019 against ETSI TS 103 248.
 

@@ -18,7 +18,7 @@ dependencies = [
 include = ["cits_validator*"]
 
 [tool.setuptools.package-data]
-cits_validator = ["asn1/standards/**/*.asn", "asn1/standards/*.json"]
+cits_validator = ["asn1/standards/**/*.asn", "asn1/standards/*.json", "asn1/standards/LICENSE-ETSI.txt"]
 
 [project.scripts]
 cits-lint = "cits_validator.cli.main:main"
