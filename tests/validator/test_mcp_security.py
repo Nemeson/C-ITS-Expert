@@ -2,6 +2,7 @@ import pytest
 
 from cits_validator.mcp.security import (
     cap_output,
+    dump_json,
     ensure_path_allowed,
     require_token_if_remote,
 )
@@ -87,12 +88,12 @@ def test_path_traversal_with_dotdot_refused(tmp_path):
         ensure_path_allowed(sneaky, roots=(root,))
 
 
-def test_cap_output_over_cap_no_truncatable_returns_unchanged():
-    """Branch 4: over-cap payload with no truncatable list and no over-cap
-    string must be returned unchanged — never drop data."""
+def test_cap_output_untruncatable_payload_becomes_explicit_error_within_cap():
+    """Nothing truncatable: the cap still holds and the loss is explicit, not silent."""
     payload = {"a": "x" * 50, "b": "x" * 50, "c": "x" * 50}
-    # total encoded size (177) > max_bytes (100), but no single top-level
-    # string exceeds 100 bytes and there is no truncatable list.
-    capped = cap_output(payload, max_bytes=100)
-    assert capped is payload
-    assert "truncated" not in capped
+
+    capped = cap_output(payload, max_bytes=150)
+
+    assert capped["truncated"] is True
+    assert "too large" in capped["error"]
+    assert len(dump_json(capped).encode("utf-8")) <= 150

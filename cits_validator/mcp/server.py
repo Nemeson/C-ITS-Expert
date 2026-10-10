@@ -11,6 +11,7 @@ from cits_validator.mcp.profiles import get_profile
 from cits_validator.mcp.resources import RESOURCES, read_resource
 from cits_validator.mcp.security import (
     cap_output,
+    dump_json,
     ensure_path_allowed,
     require_token_if_remote,
 )
@@ -33,6 +34,10 @@ _WRITE_TOOLS = frozenset({"cits_export_kml"})
 
 # Upper bound for one JSON-RPC request line on stdin (bytes of text read per line).
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+
+# Errors a tool raises for bad input; their message is meant for the caller.
+_CLIENT_ERRORS = (ValueError, PermissionError, FileNotFoundError)
 
 
 def _error(req_id: Any, code: int, message: str) -> dict[str, Any]:
@@ -374,20 +379,16 @@ class McpServer:
                         "content": [
                             {
                                 "type": "text",
-                                "text": json.dumps(capped, indent=2),
+                                "text": dump_json(capped),
                             }
                         ]
                     },
                 }
+            except _CLIENT_ERRORS as e:
+                return self._tool_error(req_id, str(e))
             except Exception as e:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {
-                        "content": [{"type": "text", "text": str(e)}],
-                        "isError": True,
-                    },
-                }
+                # Unexpected failure: do not echo internals (paths, state) to the client.
+                return self._tool_error(req_id, f"Internal error: {type(e).__name__}")
 
         elif method == "resources/list":
             return {
@@ -440,6 +441,14 @@ class McpServer:
             resp = self._process_line(line)
             if resp:  # Notifications don't require responses
                 self._write(resp)
+
+    @staticmethod
+    def _tool_error(req_id: Any, text: str) -> dict[str, Any]:
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {"content": [{"type": "text", "text": text}], "isError": True},
+        }
 
     def _process_line(self, line: str) -> dict[str, Any]:
         try:
