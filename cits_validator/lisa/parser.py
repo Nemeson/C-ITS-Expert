@@ -3,8 +3,8 @@ from __future__ import annotations
 import codecs
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from cits_validator.lisa.models import (
     CLASS_BICYCLE,
@@ -77,7 +77,7 @@ def _parse_untrusted_xml(data: bytes) -> ET.Element:
     if any(marker in lowered for marker in _DTD_MARKERS):
         raise ValueError("DTD/entity declarations are not allowed in LISA XML")
     try:
-        return ET.fromstring(data)
+        return ET.fromstring(data)  # noqa: S314 (DTD/entities rejected above)
     except ET.ParseError as exc:
         raise ValueError(f"Invalid LISA XML: {exc}") from exc
 

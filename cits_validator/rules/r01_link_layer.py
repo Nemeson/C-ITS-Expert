@@ -17,6 +17,16 @@ from cits_validator.core.models import Severity, Violation
 from cits_validator.core.registry import BaseRule
 from cits_validator.core.stream import PacketRecord
 
+ETHERTYPE_GEONETWORKING = 0x8947
+MAX_802_3_LENGTH = 1500
+MIN_RADIOTAP_LEN = 8
+MIN_DOT11_DATA_HEADER = 24
+FC_TYPE_DATA = 2
+
+# Result of one unwrapping step: (next offset, finding). An offset with no finding
+# continues; a finding stops the audit of the packet; (None, None) stops silently.
+_Step = tuple[int | None, Violation | None]
+
 
 class LinkLayerRule(BaseRule):
     """Audits link-layer unwrapping, 802.11 QoS headers, LLC/SNAP and BTP ports."""
@@ -34,210 +44,196 @@ class LinkLayerRule(BaseRule):
         coverage = state.setdefault("_coverage", {})
         coverage[category] = coverage.get(category, 0) + count
 
+    def _error(
+        self,
+        record: PacketRecord,
+        message: str,
+        offset: int,
+        *,
+        sample: str | None = None,
+        hint: str | None = None,
+    ) -> Violation:
+        return Violation(
+            rule_id=self.rule_id,
+            severity=Severity.ERROR,
+            message=message,
+            packet_index=record.index,
+            byte_offset=offset,
+            offending_sample=sample,
+            remediation_hint=hint,
+        )
+
     def audit_packet(
         self, record: PacketRecord, dlt: int, state: dict[str, Any]
     ) -> list[Violation]:
-        violations: list[Violation] = []
         data = record.data
         offset = 0
 
-        # 1. Radiotap Unwrapping
         if dlt == DLT_IEEE802_11_RADIO:
-            if len(data) < 8:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Packet too short for Radiotap header ({len(data)} < 8 bytes)",
-                        packet_index=record.index,
-                        byte_offset=0,
-                        remediation_hint="Verify packet capture integrity or minimum payload length.",
-                    )
-                )
-                return violations
+            offset, finding = self._radiotap(record, state)
+            if finding is not None:
+                return [finding]
 
-            it_len = struct.unpack("<H", data[2:4])[0]
-            if it_len < 8 or it_len > len(data):
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Invalid Radiotap length at byte offset 2: it_len={it_len}",
-                        packet_index=record.index,
-                        byte_offset=2,
-                        offending_sample=data[:4].hex(),
-                        remediation_hint=(
-                            "Always read uint16_le at offset 2 to dynamically skip Radiotap. "
-                            "Never assume a static 36-byte offset."
-                        ),
-                    )
-                )
-                return violations
-
-            self._cover(state, "radiotap")
-            offset = it_len
-
-        # 2. 802.11 MAC Frame Unwrapping
         if dlt in (DLT_IEEE802_11_RADIO, DLT_IEEE802_11):
-            if len(data) < offset + 2:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message="Payload too short for 802.11 Frame Control",
-                        packet_index=record.index,
-                        byte_offset=offset,
-                        remediation_hint="Check if frame was truncated before the 802.11 MAC header.",
-                    )
-                )
-                return violations
-
-            fc = struct.unpack("<H", data[offset : offset + 2])[0]
-            if (fc & 0x000C) >> 2 != 2:
-                # Management and control frames (beacons, ACK, RTS ...) carry no
-                # LLC/SNAP and may be shorter than 24 bytes: valid, just not V2X data.
-                self._cover(state, "dot11_non_data")
-                return violations
-
-            if len(data) < offset + 24:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Payload too short for 802.11 MAC header ({len(data) - offset} < 24 bytes)",
-                        packet_index=record.index,
-                        byte_offset=offset,
-                        remediation_hint="Check if frame was truncated before the 802.11 MAC header.",
-                    )
-                )
-                return violations
-
-            mac_len = dot11_mac_header_len(fc)
-            if len(data) < offset + mac_len:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Payload truncated during 802.11 header (expected {mac_len} bytes)",
-                        packet_index=record.index,
-                        byte_offset=offset,
-                    )
-                )
-                return violations
-
-            self._cover(state, "dot11")
-            offset += mac_len
-
-            # 3. LLC/SNAP Validation for 802.11
-            if len(data) < offset + 8:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message="Payload truncated before 8-byte LLC/SNAP header",
-                        packet_index=record.index,
-                        byte_offset=offset,
-                    )
-                )
-                return violations
-
-            llc_snap = data[offset : offset + 8]
-            if llc_snap != LLC_SNAP_GEONET:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Corrupt or non-V2X LLC/SNAP header: got {llc_snap.hex()}, expected 0x8947",
-                        packet_index=record.index,
-                        byte_offset=offset,
-                        offending_sample=llc_snap.hex(),
-                        remediation_hint=(
-                            "Expected ETSI ITS EtherType 0x8947 with SNAP header "
-                            "'AA AA 03 00 00 00 89 47'."
-                        ),
-                    )
-                )
-                return violations
-
-            self._cover(state, "llc_snap")
-            offset += 8
-
+            step, finding = self._dot11(record, offset, state)
         elif dlt == DLT_EN10MB:
-            parsed = ethernet_payload(data)
-            if parsed is None:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message="Packet too short for Ethernet header (< 14 bytes)",
-                        packet_index=record.index,
-                        byte_offset=0,
-                    )
-                )
-                return violations
+            step, finding = self._ethernet(record, state)
+        else:
+            step, finding = 0, None
 
-            ethertype, payload_offset = parsed
-            if ethertype == 0x8947:
+        if finding is not None:
+            return [finding]
+        if step is None:
+            return []  # valid frame that carries no V2X data (management/control)
+
+        return self._geonetworking(record, dlt, state, data)
+
+    # -- link layer steps ------------------------------------------------------
+    def _radiotap(self, record: PacketRecord, state: dict[str, Any]) -> tuple[int, Violation | None]:
+        data = record.data
+        if len(data) < MIN_RADIOTAP_LEN:
+            return 0, self._error(
+                record,
+                f"Packet too short for Radiotap header ({len(data)} < {MIN_RADIOTAP_LEN} bytes)",
+                0,
+                hint="Verify packet capture integrity or minimum payload length.",
+            )
+
+        it_len = struct.unpack("<H", data[2:4])[0]
+        if it_len < MIN_RADIOTAP_LEN or it_len > len(data):
+            return 0, self._error(
+                record,
+                f"Invalid Radiotap length at byte offset 2: it_len={it_len}",
+                2,
+                sample=data[:4].hex(),
+                hint=(
+                    "Always read uint16_le at offset 2 to dynamically skip Radiotap. "
+                    "Never assume a static 36-byte offset."
+                ),
+            )
+
+        self._cover(state, "radiotap")
+        return it_len, None
+
+    def _dot11(self, record: PacketRecord, offset: int, state: dict[str, Any]) -> _Step:
+        data = record.data
+        truncated_hint = "Check if frame was truncated before the 802.11 MAC header."
+        if len(data) < offset + 2:
+            return None, self._error(
+                record, "Payload too short for 802.11 Frame Control", offset, hint=truncated_hint
+            )
+
+        fc = struct.unpack("<H", data[offset : offset + 2])[0]
+        if (fc & 0x000C) >> 2 != FC_TYPE_DATA:
+            # Management and control frames (beacons, ACK, RTS ...) carry no
+            # LLC/SNAP and may be shorter than 24 bytes: valid, just not V2X data.
+            self._cover(state, "dot11_non_data")
+            return None, None
+
+        if len(data) < offset + MIN_DOT11_DATA_HEADER:
+            return None, self._error(
+                record,
+                f"Payload too short for 802.11 MAC header "
+                f"({len(data) - offset} < {MIN_DOT11_DATA_HEADER} bytes)",
+                offset,
+                hint=truncated_hint,
+            )
+
+        mac_len = dot11_mac_header_len(fc)
+        if len(data) < offset + mac_len:
+            return None, self._error(
+                record, f"Payload truncated during 802.11 header (expected {mac_len} bytes)", offset
+            )
+
+        self._cover(state, "dot11")
+        offset += mac_len
+        return self._llc_snap(record, offset, state)
+
+    def _llc_snap(self, record: PacketRecord, offset: int, state: dict[str, Any]) -> _Step:
+        data = record.data
+        if len(data) < offset + len(LLC_SNAP_GEONET):
+            return None, self._error(
+                record, "Payload truncated before 8-byte LLC/SNAP header", offset
+            )
+
+        llc_snap = data[offset : offset + len(LLC_SNAP_GEONET)]
+        if llc_snap != LLC_SNAP_GEONET:
+            return None, self._error(
+                record,
+                f"Corrupt or non-V2X LLC/SNAP header: got {llc_snap.hex()}, expected 0x8947",
+                offset,
+                sample=llc_snap.hex(),
+                hint=(
+                    "Expected ETSI ITS EtherType 0x8947 with SNAP header "
+                    "'AA AA 03 00 00 00 89 47'."
+                ),
+            )
+
+        self._cover(state, "llc_snap")
+        return offset + len(LLC_SNAP_GEONET), None
+
+    def _ethernet(self, record: PacketRecord, state: dict[str, Any]) -> _Step:
+        data = record.data
+        parsed = ethernet_payload(data)
+        if parsed is None:
+            return None, self._error(record, "Packet too short for Ethernet header (< 14 bytes)", 0)
+
+        ethertype, payload_offset = parsed
+        if ethertype == ETHERTYPE_GEONETWORKING:
+            self._cover(state, "ethernet")
+            return payload_offset, None
+
+        if ethertype <= MAX_802_3_LENGTH:  # 802.3 length field, LLC/SNAP follows
+            llc_end = payload_offset + len(LLC_SNAP_GEONET)
+            if data[payload_offset:llc_end] == LLC_SNAP_GEONET:
                 self._cover(state, "ethernet")
-                offset = payload_offset
-            elif ethertype <= 1500:
-                # 802.3 length + LLC/SNAP
-                llc_end = payload_offset + len(LLC_SNAP_GEONET)
-                if data[payload_offset:llc_end] == LLC_SNAP_GEONET:
-                    self._cover(state, "ethernet")
-                    self._cover(state, "llc_snap")
-                    offset = llc_end
-                else:
-                    violations.append(
-                        Violation(
-                            rule_id=self.rule_id,
-                            severity=Severity.ERROR,
-                            message="Invalid 802.3 LLC/SNAP EtherType: expected 0x8947",
-                            packet_index=record.index,
-                            byte_offset=payload_offset,
-                        )
-                    )
-                    return violations
-            else:
-                violations.append(
-                    Violation(
-                        rule_id=self.rule_id,
-                        severity=Severity.ERROR,
-                        message=f"Non-V2X Ethernet EtherType: 0x{ethertype:04x}",
-                        packet_index=record.index,
-                        byte_offset=12,
-                        remediation_hint="EtherType must be 0x8947 for C-ITS / GeoNetworking frames.",
-                    )
-                )
-                return violations
+                self._cover(state, "llc_snap")
+                return llc_end, None
+            return None, self._error(
+                record, "Invalid 802.3 LLC/SNAP EtherType: expected 0x8947", payload_offset
+            )
 
-        # 4. GeoNetworking + BTP. The link layer has been unwrapped at this point;
-        #    the BTP destination port sits after the GeoNetworking Basic, Common
-        #    and extended headers (EN 302 636-4-1 / -5-1), not immediately after
-        #    LLC/SNAP. A secured frame hides it inside the 1609.2 envelope, so no
-        #    port is reported rather than a fabricated one.
+        return None, self._error(
+            record,
+            f"Non-V2X Ethernet EtherType: 0x{ethertype:04x}",
+            12,
+            hint="EtherType must be 0x8947 for C-ITS / GeoNetworking frames.",
+        )
+
+    # -- GeoNetworking + BTP -----------------------------------------------------
+    def _geonetworking(
+        self, record: PacketRecord, dlt: int, state: dict[str, Any], data: bytes
+    ) -> list[Violation]:
+        """The BTP destination port sits after the GeoNetworking Basic, Common and
+        extended headers (EN 302 636-4-1 / -5-1), not immediately after LLC/SNAP. A
+        secured frame hides it inside the 1609.2 envelope, so no port is reported
+        rather than a fabricated one."""
         frame = locate_geonetworking_frame(data, dlt)
-        if frame is not None:
-            self._cover(state, "geonet")
-            if frame.was_secured:
-                self._cover(state, "secured")
-                state["secured_frames"] = state.get("secured_frames", 0) + 1
-            elif frame.btp_port is not None:
-                self._cover(state, "btp")
-                ports = state.setdefault("btp_ports", {})
-                ports[frame.btp_port] = ports.get(frame.btp_port, 0) + 1
-                if frame.btp_port not in BTP_PORTS and ports[frame.btp_port] == 1:
-                    violations.append(
-                        Violation(
-                            rule_id=self.rule_id,
-                            severity=Severity.INFO,
-                            message=(
-                                f"BTP destination port {frame.btp_port} is not a well-known "
-                                "ITS service port (ETSI TS 103 248)"
-                            ),
-                            packet_index=record.index,
-                            byte_offset=frame.btp_offset,
-                        )
-                    )
+        if frame is None:
+            return []
 
-        return violations
+        self._cover(state, "geonet")
+        if frame.was_secured:
+            self._cover(state, "secured")
+            state["secured_frames"] = state.get("secured_frames", 0) + 1
+            return []
+        if frame.btp_port is None:
+            return []
+
+        self._cover(state, "btp")
+        ports = state.setdefault("btp_ports", {})
+        ports[frame.btp_port] = ports.get(frame.btp_port, 0) + 1
+        if frame.btp_port in BTP_PORTS or ports[frame.btp_port] != 1:
+            return []
+        return [
+            Violation(
+                rule_id=self.rule_id,
+                severity=Severity.INFO,
+                message=(
+                    f"BTP destination port {frame.btp_port} is not a well-known "
+                    "ITS service port (ETSI TS 103 248)"
+                ),
+                packet_index=record.index,
+                byte_offset=frame.btp_offset,
+            )
+        ]

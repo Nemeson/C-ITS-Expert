@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from cits_validator.geo.geojson_builder import export_mapem_geojson
 from cits_validator.geo.kml_builder import export_mapem_kml

@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from cits_validator import __version__
 from cits_validator.asn1.decoder import MESSAGE_TYPES, is_available

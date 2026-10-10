@@ -46,7 +46,7 @@ class Settings:
     max_file_bytes: int = DEFAULT_MAX_FILE_BYTES
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "Settings":
+    def from_env(cls, env: dict[str, str] | None = None) -> Settings:
         e = os.environ if env is None else env
         profile = e.get("CITS_MCP_PROFILE", "host").strip().lower()
         if profile not in VALID_PROFILES:

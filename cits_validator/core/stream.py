@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import struct
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import BinaryIO, Iterator, NamedTuple
+from typing import BinaryIO, NamedTuple
 
 # Magic byte prefixes of a PCAPNG Section Header Block (SHB block type 0x0A0D0D0A).
 PCAPNG_MAGIC = b"\x0a\x0d\x0d\x0a"
@@ -195,16 +196,20 @@ class PcapStreamingIterator:
         if self.header_info is None:
             self.read_header(stream)
 
-        assert self.header_info is not None
-        if self.header_info.is_pcapng:
+        if self._header().is_pcapng:
             yield from self._iter_pcapng(stream)
         else:
             yield from self._iter_classic(stream)
 
+    def _header(self) -> PcapHeaderInfo:
+        if self.header_info is None:
+            raise ValueError("capture header has not been read")
+        return self.header_info
+
     def _iter_classic(self, stream: BinaryIO) -> Iterator[PacketRecord]:
-        assert self.header_info is not None
-        fmt_char = ">" if self.header_info.byte_order == "big" else "<"
-        scale = float(self.header_info.timestamp_scale)
+        header = self._header()
+        fmt_char = ">" if header.byte_order == "big" else "<"
+        scale = float(header.timestamp_scale)
 
         packet_index = 0
         while True:
@@ -283,8 +288,8 @@ class PcapStreamingIterator:
         return block_type, body, fmt
 
     def _iter_pcapng(self, stream: BinaryIO) -> Iterator[PacketRecord]:
-        assert self.header_info is not None
-        fmt = "<" if self.header_info.byte_order == "little" else ">"
+        header = self._header()
+        fmt = "<" if header.byte_order == "little" else ">"
         packet_index = 0
         dlt_fixed = False
 
@@ -297,7 +302,7 @@ class PcapStreamingIterator:
             if block_type == PCAPNG_BT_SHB:
                 # A new section may re-declare its byte order; interfaces reset.
                 self.interfaces = []
-                self.header_info.byte_order = "little" if fmt == "<" else "big"
+                header.byte_order = "little" if fmt == "<" else "big"
                 continue
 
             if block_type == PCAPNG_BT_IDB:
@@ -311,9 +316,9 @@ class PcapStreamingIterator:
                     # The section header carries no link type; the first interface
                     # definition of the file supplies the effective DLT.
                     dlt_fixed = True
-                    self.header_info.dlt = iface.linktype
-                    self.header_info.is_nanosecond = iface.ticks_per_second == 1e9
-                    self.header_info.timestamp_scale = int(iface.ticks_per_second)
+                    header.dlt = iface.linktype
+                    header.is_nanosecond = iface.ticks_per_second == 1e9
+                    header.timestamp_scale = int(iface.ticks_per_second)
                 continue
 
             if block_type in PCAPNG_RECORD_BLOCKS:
@@ -328,7 +333,7 @@ class PcapStreamingIterator:
                     iface = self.interfaces[iface_id]
                 else:
                     self.unknown_interface_records += 1
-                    iface = _PcapngInterface(linktype=self.header_info.dlt)
+                    iface = _PcapngInterface(linktype=header.dlt)
                 packet_index += 1
                 ticks = parsed.ticks
                 yield PacketRecord(
